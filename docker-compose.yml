@@ -1,0 +1,17 @@
+services:
+  musicdl-web:
+    build: .
+    image: musicdl-web:latest
+    container_name: musicdl-web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - ./downloads:/app/downloads
+      - ./data:/app/data
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - HOST=0.0.0.0
+      - PORT=8080
+      - MUSICDL_DATA_DIR=/app/data
+      - MUSICDL_DOWNLOAD_DIR=/app/downloads

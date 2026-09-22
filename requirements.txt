@@ -1,0 +1,6 @@
+musicdl>=2.13.11,<3
+flask>=3.0.0,<4
+requests>=2.31.0,<3
+mutagen>=1.47.0,<2
+waitress>=3.0.0,<4
+pytest>=8.0.0,<9

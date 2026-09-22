@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# PyInstaller / binary artifacts
+build/
+dist/
+
+# Runtime data
+data/
+downloads/
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
