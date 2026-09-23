@@ -83,20 +83,20 @@ class LyricsEngine {
     if (target === this.currentIndex) return;
     this.currentIndex = target;
 
-    // Update active class
-    const prevActive = this.container.querySelector('.lyric-line.active');
-    if (prevActive) prevActive.classList.remove('active');
+    const lines = this.container.querySelectorAll('.lyric-line');
+    lines.forEach((el, idx) => {
+      const dist = target < 0 ? 99 : Math.abs(idx - target);
+      el.classList.toggle('active', dist === 0);
+      el.classList.toggle('near', dist === 1);
+      el.classList.toggle('far', dist > 1);
+    });
 
     if (target >= 0) {
-      const activeEl = this.container.children[target];
+      const activeEl = lines[target];
       if (activeEl) {
-        activeEl.classList.add('active');
-
-        // Center scroll
         const containerHeight = this.container.clientHeight;
         const targetTop = activeEl.offsetTop - this.container.offsetTop;
         const scrollTop = targetTop - containerHeight / 2 + activeEl.clientHeight / 2;
-
         this.container.scrollTo({
           top: Math.max(0, scrollTop),
           behavior: 'smooth'

@@ -144,13 +144,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!coverSrc && track.rel_path && track.has_cover) {
       coverSrc = `/api/library/cover/${encodeURIComponent(track.rel_path)}`;
     }
-    playerCoverImg.src = coverSrc || COVER_FALLBACK;
-    playerCoverImg.alt = track.song_name ? `${track.song_name} 的封面` : '专辑封面';
+    const coverAlt = track.song_name ? `${track.song_name} 的封面` : '专辑封面';
+    setCover(coverSrc || COVER_FALLBACK, coverAlt);
     markPlayingRow();
 
-    // Update Lyrics Info
-    document.getElementById('lyricsTitle').textContent = track.song_name || '歌词';
-    document.getElementById('lyricsArtist').textContent = track.singers || '';
+    document.getElementById('lyricsTitle').textContent = track.song_name || '未知曲目';
+    document.getElementById('lyricsArtist').textContent = track.singers || '未知艺人';
+    document.getElementById('stageAlbum').textContent = track.album || '';
 
     // Fetch and load lyrics
     lyrics.clear();
@@ -176,15 +176,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     lyrics.sync(currentTime);
   };
 
-  // Lyrics Drawer Toggle
-  toggleLyricsBtn.addEventListener('click', () => {
-    lyricsModal.classList.toggle('active');
-    toggleLyricsBtn.classList.toggle('active');
-  });
-  closeLyricsBtn.addEventListener('click', () => {
+  const stageCoverImg = document.getElementById('stageCoverImg');
+  const stageBackdrop = document.getElementById('stageBackdrop');
+
+  function setCover(src, alt) {
+    playerCoverImg.src = src;
+    playerCoverImg.alt = alt;
+    stageCoverImg.src = src;
+    stageCoverImg.alt = alt;
+    stageBackdrop.src = src;
+  }
+
+  function openStage() {
+    lyricsModal.classList.add('active');
+    lyricsModal.setAttribute('aria-hidden', 'false');
+    toggleLyricsBtn.classList.add('active');
+    lyrics.currentIndex = -1;
+    requestAnimationFrame(() => lyrics.sync(player.audio.currentTime || 0));
+  }
+
+  function closeStage() {
     lyricsModal.classList.remove('active');
+    lyricsModal.setAttribute('aria-hidden', 'true');
     toggleLyricsBtn.classList.remove('active');
+  }
+
+  toggleLyricsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (lyricsModal.classList.contains('active')) closeStage();
+    else openStage();
   });
+  closeLyricsBtn.addEventListener('click', closeStage);
+  document.getElementById('playerCoverWrapper').addEventListener('click', openStage);
+  document.querySelector('.player-info').addEventListener('click', openStage);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lyricsModal.classList.contains('active')) closeStage();
+  });
+  stageCoverImg.addEventListener('error', () => setCover(COVER_FALLBACK, '专辑封面'));
 
   // Queue Drawer Toggle
   openQueueBtn.addEventListener('click', () => {
@@ -201,7 +229,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     player.audio.src = '';
     playerTitle.textContent = '未在播放';
     playerArtist.textContent = '从列表点一首歌';
-    playerCoverImg.alt = '专辑封面';
+    document.getElementById('lyricsTitle').textContent = '未在播放';
+    document.getElementById('lyricsArtist').textContent = '从列表点一首歌';
+    document.getElementById('stageAlbum').textContent = '';
+    setCover(COVER_FALLBACK, '专辑封面');
     markPlayingRow();
     lyrics.clear();
     updateQueueUI();
