@@ -6,6 +6,7 @@ import threading
 from typing import Dict, Any, Generator, List, Optional
 from urllib.parse import urlparse
 
+from backend.albums import extract_album, list_album_tracks, resolve_track
 from backend.config import CONFIG
 from backend.sources_registry import MANAGER, SOURCE_CATALOG
 
@@ -69,6 +70,7 @@ def track_to_payload(song_info: Any, token: str, source: str) -> Dict[str, Any]:
 
     download_url = getattr(song_info, 'download_url', None)
     has_valid_url = isinstance(download_url, str) and download_url.startswith('http')
+    album_ref = extract_album(song_info, source) or {}
 
     return {
         'token': token,
@@ -77,7 +79,9 @@ def track_to_payload(song_info: Any, token: str, source: str) -> Dict[str, Any]:
         'source_short': source_meta.get('short', source),
         'song_name': s(song_info.song_name) or '未知曲目',
         'singers': s(song_info.singers) or '未知艺人',
-        'album': s(song_info.album),
+        'album': s(song_info.album) or album_ref.get('name', ''),
+        'album_id': album_ref.get('id', ''),
+        'album_downloadable': bool(album_ref.get('downloadable')),
         'ext': ext or 'mp3',
         'file_size': s(song_info.file_size),
         'duration': s(song_info.duration),
@@ -234,6 +238,58 @@ URL_SOURCE_MAPPING = [
     (['jamendo.com'], 'JamendoMusicClient'),
     (['deezer.com'], 'DeezerMusicClient'),
 ]
+
+
+def album_stream(source: str, album_id: str) -> Generator[str, None, None]:
+    """Resolve every track on an album and emit them as SSE."""
+    out_q: queue.Queue = queue.Queue()
+
+    def emit(event: str, data: Any):
+        out_q.put(f'event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n')
+
+    def run_parse():
+        try:
+            client = MANAGER.get_client(source)
+            if not client:
+                emit('album_error', {'message': '找不到这个音源'})
+                return
+            tracks = list_album_tracks(client, source, album_id)
+            if not tracks:
+                emit('album_error', {'message': '没有拿到这张专辑的曲目'})
+                return
+            emit('album_start', {
+                'source': source,
+                'album_id': album_id,
+                'count': len(tracks),
+                'label': SOURCE_CATALOG.get(source, {}).get('label', source),
+            })
+            saved = 0
+            for track in tracks:
+                song = resolve_track(client, track)
+                if not song:
+                    continue
+                token = REGISTRY.add(song, source)
+                emit('album_track', track_to_payload(song, token, source))
+                saved += 1
+            if saved == 0:
+                emit('album_error', {'message': '专辑曲目都没能解析出下载地址'})
+                return
+            emit('album_done', {'count': saved, 'listed': len(tracks)})
+        except Exception as err:
+            emit('album_error', {'message': str(err)})
+        finally:
+            out_q.put(None)
+
+    threading.Thread(target=run_parse, daemon=True).start()
+    while True:
+        try:
+            msg = out_q.get(timeout=180)
+        except queue.Empty:
+            yield 'event: album_error\ndata: {"message": "解析专辑超时"}\n\n'
+            break
+        if msg is None:
+            break
+        yield msg
 
 
 def detect_source_from_url(url: str) -> Optional[str]:

@@ -16,8 +16,9 @@ from backend.sources_registry import (
     SOURCE_CATALOG, SOURCE_ORDER, CATEGORY_LABELS,
     MANAGER, get_catalog_info
 )
+from backend.albums import album_from_url
 from backend.streamer import (
-    REGISTRY, search_stream, playlist_stream
+    REGISTRY, search_stream, playlist_stream, album_stream
 )
 from backend.downloader import (
     run_download, cancel_download, get_download_status, get_all_downloads
@@ -116,6 +117,38 @@ def api_parse_playlist():
     def generate():
         yield 'retry: 10000\n\n'
         for msg in playlist_stream(url, source_hint=source_hint):
+            yield msg
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+    )
+
+
+# ---------------------------------------------------------------------------
+# Album Parsing API (SSE)
+# ---------------------------------------------------------------------------
+@app.route('/api/parse_album', methods=['POST'])
+def api_parse_album():
+    data = request.get_json(force=True, silent=True) or {}
+    source = (data.get('source') or '').strip()
+    album_id = (data.get('album_id') or '').strip()
+    url = (data.get('url') or '').strip()
+
+    if url and not (source and album_id):
+        found = album_from_url(url)
+        if found:
+            source = found['source']
+            album_id = found['album_id']
+
+    if source not in SOURCE_CATALOG or not album_id:
+        return jsonify({'error': '无法识别这张专辑'}), 400
+
+    @stream_with_context
+    def generate():
+        yield 'retry: 10000\n\n'
+        for msg in album_stream(source, album_id):
             yield msg
 
     return Response(

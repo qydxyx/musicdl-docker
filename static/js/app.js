@@ -321,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Search Logic (SSE) ──
   const globalSearchInput = document.getElementById('globalSearchInput');
   const searchResultsList = document.getElementById('searchResultsList');
+  const searchAlbumStrip = document.getElementById('searchAlbumStrip');
   const searchTableHeader = document.getElementById('searchTableHeader');
   const searchEmptyState = document.getElementById('searchEmptyState');
   const searchProgressBar = document.getElementById('searchProgressBar');
@@ -338,8 +339,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Smart detection: If user pastes URL, automatically redirect to playlist parser
     if (query.startsWith('http://') || query.startsWith('https://')) {
+      const albumLink = albumTargetFromUrl(query);
+      if (albumLink) {
+        downloadWholeAlbum(albumLink.source, albumLink.albumId, '这张专辑');
+        return;
+      }
       document.getElementById('playlistUrlInput').value = query;
       switchTab('playlist');
       startParsePlaylist();
@@ -352,6 +357,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     searchResultsList.innerHTML = '';
+    searchAlbumStrip.innerHTML = '';
+    searchAlbumStrip.hidden = true;
     searchEmptyState.style.display = 'none';
     searchTableHeader.style.display = 'grid';
     searchProgressBar.style.display = 'flex';
@@ -359,6 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const sourcesArr = Array.from(selectedSearchSources);
     let resultCount = 0;
+    const seenAlbums = new Map();
 
     currentSearchSSE = API.searchStream(query, sourcesArr, {
       onSourceStart(data) {
@@ -376,6 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           onDownload: (t) => triggerDownload(t),
         });
         searchResultsList.appendChild(row);
+        noteSearchAlbum(track, seenAlbums);
         markPlayingRow();
       },
       onSourceDone(data) {
@@ -398,6 +407,96 @@ document.addEventListener('DOMContentLoaded', async () => {
         searchProgressBar.style.display = 'none';
         UI.showToast('搜索连接断开或超时', 'error');
       }
+    });
+  }
+
+  function albumTargetFromUrl(raw) {
+    let url;
+    try { url = new URL(raw); } catch (err) { return null; }
+    const host = url.hostname.toLowerCase();
+    const blob = `${url.pathname} ${url.hash}`;
+    if (host.includes('163.com') && blob.includes('album')) {
+      const fromQuery = url.searchParams.get('id') || new URLSearchParams(url.hash.split('?')[1] || '').get('id');
+      const fromPath = (url.pathname.match(/album\/(\d+)/) || [])[1];
+      const albumId = fromQuery || fromPath;
+      if (albumId) return { source: 'NeteaseMusicClient', albumId };
+    }
+    if (host.includes('qq.com') && /album/i.test(blob)) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const albumId = parts[parts.length - 1];
+      if (albumId && !/album/i.test(albumId)) return { source: 'QQMusicClient', albumId };
+    }
+    if (host.includes('kuwo.cn') && url.pathname.includes('album')) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const albumId = parts[parts.length - 1];
+      if (/^\d+$/.test(albumId)) return { source: 'KuwoMusicClient', albumId };
+    }
+    if (host.includes('kugou.com') && url.pathname.includes('album')) {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const albumId = (parts[parts.length - 1] || '').replace(/\..*$/, '');
+      if (/^\d+$/.test(albumId)) return { source: 'KugouMusicClient', albumId };
+    }
+    if (host.includes('migu.cn') && /album/i.test(blob)) {
+      const albumId = url.searchParams.get('albumId') || url.searchParams.get('id');
+      if (albumId) return { source: 'MiguMusicClient', albumId };
+    }
+    return null;
+  }
+
+  function esc(value) {
+    return String(value || '').replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[ch]));
+  }
+
+  function noteSearchAlbum(track, seenAlbums) {
+    if (!track.album) return;
+    const key = track.album_id
+      ? `${track.source}:${track.album_id}`
+      : `name:${track.source}:${track.album}:${track.singers || ''}`;
+    let card = seenAlbums.get(key);
+    if (!card) {
+      card = document.createElement('article');
+      card.className = 'album-card';
+      const cover = track.cover_url || COVER_FALLBACK;
+      const canDownload = Boolean(track.album_downloadable && track.album_id);
+      card.innerHTML = `
+        <img src="${esc(cover)}" alt="" loading="lazy">
+        <div>
+          <h3 title="${esc(track.album)}">${esc(track.album)}</h3>
+          <p>${esc(track.singers)} · ${esc(track.source_short || track.source_label || '')}</p>
+          ${canDownload ? '<button class="btn" type="button">下载整张专辑</button>' : '<p>没有专辑编号，不能整张下载</p>'}
+        </div>
+      `;
+      if (canDownload) {
+        card.querySelector('button').addEventListener('click', () => {
+          downloadWholeAlbum(track.source, track.album_id, track.album);
+        });
+      }
+      seenAlbums.set(key, card);
+      searchAlbumStrip.hidden = false;
+      searchAlbumStrip.appendChild(card);
+    }
+  }
+
+  function downloadWholeAlbum(source, albumId, name) {
+    let saved = 0;
+    UI.showToast(`正在解析专辑「${name}」`, 'info');
+    API.parseAlbumStream(source, albumId, {
+      onStart(data) {
+        UI.showToast(`专辑共 ${data.count} 首，开始加入下载`, 'info');
+      },
+      onTrack(track) {
+        saved += 1;
+        API.startDownload(track.token);
+      },
+      onDone(data) {
+        UI.showToast(`已加入 ${data.count || saved} 首`, 'success');
+        switchTab('downloads');
+      },
+      onError(err) {
+        UI.showToast(err.message || '整张专辑解析失败', 'error');
+      },
     });
   }
 

@@ -156,6 +156,52 @@ const API = {
     return controller;
   },
 
+  parseAlbumStream(source, albumId, callbacks) {
+    const controller = new AbortController();
+    fetch('/api/parse_album', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source, album_id: albumId }),
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        callbacks.onError && callbacks.onError(err);
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+        for (const evt of events) {
+          const lines = evt.split('\n');
+          let eventType = 'message';
+          let dataStr = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataStr = line.slice(6).trim();
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr);
+            if (eventType === 'album_start') callbacks.onStart && callbacks.onStart(data);
+            else if (eventType === 'album_track') callbacks.onTrack && callbacks.onTrack(data);
+            else if (eventType === 'album_done') callbacks.onDone && callbacks.onDone(data);
+            else if (eventType === 'album_error') callbacks.onError && callbacks.onError(data);
+          } catch (err) {}
+        }
+      }
+    }).catch((err) => {
+      if (err.name !== 'AbortError') callbacks.onError && callbacks.onError(err);
+    });
+    return controller;
+  },
+
   // ── Downloads Progress SSE ──
   listenDownloads(onUpdate) {
     const es = new EventSource('/api/download/progress');

@@ -9,6 +9,9 @@ from backend.config import ConfigManager, CONFIG
 from backend.sources_registry import (
     SOURCE_CATALOG, CATEGORY_LABELS, MANAGER, get_catalog_info
 )
+from backend.albums import (
+    album_from_url, extract_album, tracks_from_netease, tracks_from_qq,
+)
 from backend.streamer import REGISTRY, track_to_payload, detect_source_from_url
 from backend.library import (
     scan_local_library, get_library_lyric, delete_library_track
@@ -44,6 +47,42 @@ class BackendTestCase(unittest.TestCase):
         self.assertTrue(len(catalog_info) > 10)
         migu = next(s for s in catalog_info if s['id'] == 'MiguMusicClient')
         self.assertEqual(migu['label'], '咪咕音乐')
+
+    def test_album_identity(self):
+        song = MagicMock()
+        song.album = '叶惠美'
+        song.singers = '周杰伦'
+        song.cover_url = ''
+        song.raw_data = {'search': {'al': {'id': 18918, 'name': '叶惠美', 'picUrl': 'https://example.com/a.jpg'}}}
+        ref = extract_album(song, 'NeteaseMusicClient')
+        self.assertEqual(ref['id'], '18918')
+        self.assertTrue(ref['downloadable'])
+
+        qq = MagicMock()
+        qq.album = '叶惠美'
+        qq.singers = '周杰伦'
+        qq.cover_url = ''
+        qq.raw_data = {'search': {'album': {'mid': '000MkMni19ClKG', 'title': '叶惠美'}}}
+        self.assertEqual(extract_album(qq, 'QQMusicClient')['id'], '000MkMni19ClKG')
+
+        plain = MagicMock()
+        plain.album = '某张专辑'
+        plain.singers = '某人'
+        plain.cover_url = ''
+        plain.raw_data = {}
+        self.assertFalse(extract_album(plain, 'JamendoMusicClient')['downloadable'])
+
+        self.assertEqual(
+            album_from_url('https://music.163.com/album?id=18918')['album_id'],
+            '18918',
+        )
+        self.assertEqual(
+            album_from_url('https://y.qq.com/n/ryqq/albumDetail/000MkMni19ClKG')['source'],
+            'QQMusicClient',
+        )
+        self.assertIsNone(album_from_url('https://music.163.com/playlist?id=123'))
+        self.assertEqual(len(tracks_from_netease({'songs': [{'id': 1}, {'name': 'x'}]})), 1)
+        self.assertEqual(tracks_from_qq({'data': {'list': [{'songmid': 'abc'}]}})[0]['mid'], 'abc')
 
     def test_url_detection(self):
         self.assertEqual(detect_source_from_url('https://music.163.com/#/playlist?id=123'), 'NeteaseMusicClient')
