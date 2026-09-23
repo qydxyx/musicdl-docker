@@ -7,9 +7,9 @@ run:
 stop:
 	bash run.sh stop
 
-# ── Docker 容器构建与运行 ──
+# ── 拉取已发布镜像并运行 ──
 docker:
-	docker compose build && docker compose up -d
+	docker compose pull && docker compose up -d
 	@echo "🌐 musicdl Web UI 已就绪: http://localhost:$${PORT:-8080}"
 
 docker-stop:

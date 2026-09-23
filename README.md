@@ -61,18 +61,19 @@ tar -xzf musicdl-web-*.tar.gz
 
 非常适合群晖 (Synology)、QNAP、Unraid 及云服务器部署。
 
+镜像发布在 `ghcr.io/qydxyx/musicdl-docker:latest`（`linux/amd64` 与 `linux/arm64`）。推送到 `main` 后会自动构建这个标签。
+
 #### 使用 Docker Compose (最简单)
 在本项目根目录下直接执行：
 ```bash
 docker compose up -d
 ```
 
-或使用自定义参数启动：
+Compose 文件里的镜像是 `ghcr.io/qydxyx/musicdl-docker:latest`，启动时会拉取它。自定义端口：
+
 ```bash
 PORT=8080 docker compose up -d
 ```
-
-推送到 GitHub 后会自动构建镜像，发布到 `ghcr.io/qydxyx/musicdl-docker`（`linux/amd64` 与 `linux/arm64`）。`main` 分支对应 `:latest`。
 
 #### 单容器命令启动
 ```bash
@@ -120,7 +121,7 @@ cd musicdl-docker
 ```bash
 make run          # 本地源码启动服务 (执行 run.sh)
 make stop         # 停止本地运行的服务
-make docker       # 构建并后台启动 Docker 容器
+make docker       # 拉取镜像并后台启动容器
 make docker-stop  # 停止并移除 Docker 容器
 make binary       # 使用 PyInstaller 打包当前平台的独立二进制文件
 make test         # 运行后端全套自动化测试

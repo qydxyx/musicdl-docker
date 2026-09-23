@@ -1,7 +1,7 @@
 services:
   musicdl-web:
-    build: .
-    image: musicdl-web:latest
+    image: ghcr.io/qydxyx/musicdl-docker:latest
+    pull_policy: always
     container_name: musicdl-web
     restart: unless-stopped
     ports:
