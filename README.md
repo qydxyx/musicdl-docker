@@ -72,8 +72,11 @@ docker compose up -d
 PORT=8080 docker compose up -d
 ```
 
+推送到 GitHub 后会自动构建镜像，发布到 `ghcr.io/qydxyx/musicdl-docker`（`linux/amd64` 与 `linux/arm64`）。`main` 分支对应 `:latest`。
+
 #### 单容器命令启动
 ```bash
+docker pull ghcr.io/qydxyx/musicdl-docker:latest
 docker run -d \
   --name musicdl-web \
   --restart unless-stopped \
@@ -81,7 +84,7 @@ docker run -d \
   -v $(pwd)/downloads:/app/downloads \
   -v $(pwd)/data:/app/data \
   -e TZ=Asia/Shanghai \
-  musicdl-web:latest
+  ghcr.io/qydxyx/musicdl-docker:latest
 ```
 
 > **持久化目录说明**：
