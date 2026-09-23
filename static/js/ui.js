@@ -47,7 +47,7 @@ const UI = {
       coverSrc = `/api/library/cover/${encodeURIComponent(track.rel_path)}`;
     }
     if (!coverSrc) {
-      coverSrc = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="%234b5563"%3E%3Cpath d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/%3E%3C/svg%3E';
+      coverSrc = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 24 24' fill='%236b6258'%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E";
     }
 
     const isLossless = track.lossless || ['flac', 'wav', 'ape'].includes((track.ext || '').toLowerCase());
@@ -55,7 +55,7 @@ const UI = {
 
     row.innerHTML = `
       <div class="track-title-col">
-        <img class="track-cover-mini" src="${coverSrc}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'40\\' height=\\'40\\' viewBox=\\'0 0 24 24\\' fill=\\'%234b5563\\'%3E%3Cpath d=\\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\\'/%3E%3C/svg%3E'">
+        <img class="track-cover-mini" src="${coverSrc}" alt="" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'44\\' height=\\'44\\' viewBox=\\'0 0 24 24\\' fill=\\'%236b6258\\'%3E%3Cpath d=\\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\\'/%3E%3C/svg%3E'">
         <div class="track-meta-wrap">
           <span class="track-name" title="${track.song_name}">${track.song_name}</span>
           <span class="track-singers" title="${track.singers}">${track.singers}</span>
@@ -130,26 +130,18 @@ const UI = {
     const percent = dl.total > 0 ? Math.min(100, Math.round((dl.downloaded / dl.total) * 100)) : 0;
     const speedStr = dl.speed > 0 ? `${(dl.speed / (1024 * 1024)).toFixed(2)} MB/s` : '';
 
-    let statusLabel = '正在下载...';
-    let statusColor = '#38bdf8';
-    if (dl.status === 'tagging') {
-      statusLabel = '写入封面与标签 (Mutagen)...';
-      statusColor = '#a855f7';
-    } else if (dl.status === 'done') {
-      statusLabel = '下载完成';
-      statusColor = '#22c55e';
-    } else if (dl.status === 'error') {
-      statusLabel = `失败: ${dl.message || '未知错误'}`;
-      statusColor = '#ef4444';
-    } else if (dl.status === 'cancelled') {
-      statusLabel = '已取消';
-      statusColor = '#94a3b8';
-    }
+    let statusLabel = '正在下载';
+    if (dl.status === 'tagging') statusLabel = '写入封面与标签';
+    else if (dl.status === 'done') statusLabel = '下载完成';
+    else if (dl.status === 'error') statusLabel = `失败：${dl.message || '未知错误'}`;
+    else if (dl.status === 'cancelled') statusLabel = '已取消';
+    else if (dl.status === 'pending') statusLabel = '等待中';
 
+    card.classList.add(`is-${dl.status || 'downloading'}`);
     card.innerHTML = `
       <div class="dl-card-header">
         <span class="dl-title" title="${dl.name}">${dl.name || '未命名音频'}</span>
-        <span class="dl-status-badge" style="color: ${statusColor}; font-size: 12px;">${statusLabel}</span>
+        <span class="dl-status-badge">${statusLabel}</span>
       </div>
       <div class="dl-progress-bar">
         <div class="dl-progress-fill" style="width: ${percent}%;"></div>

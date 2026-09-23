@@ -96,8 +96,8 @@ class AudioPlayer {
       for (let i = 0; i < bufferLength / 2; i++) {
         const barHeight = (dataArray[i] / 255) * this.canvas.height;
         const grad = this.ctx.createLinearGradient(0, this.canvas.height, 0, 0);
-        grad.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
-        grad.addColorStop(1, 'rgba(168, 85, 247, 0.9)');
+        grad.addColorStop(0, 'rgba(212, 160, 92, 0.28)');
+        grad.addColorStop(1, 'rgba(212, 160, 92, 0.92)');
 
         this.ctx.fillStyle = grad;
         this.ctx.fillRect(x, this.canvas.height - barHeight, barWidth - 2, barHeight);

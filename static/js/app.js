@@ -12,6 +12,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   let allSources = [];
   let currentSearchSSE = null;
   let activePlaylistTracks = [];
+  const COVER_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='%236b6258'%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E";
+
+  function markPlayingRow() {
+    const track = player.queue[player.currentIndex];
+    document.querySelectorAll('.track-row.playing').forEach((el) => el.classList.remove('playing'));
+    if (!track) return;
+    document.querySelectorAll('.track-row').forEach((row) => {
+      const sameToken = track.token && row.dataset.token === track.token;
+      const samePath = track.rel_path && row.dataset.path === track.rel_path;
+      if (sameToken || samePath) row.classList.add('playing');
+    });
+  }
 
   // ── Tab Navigation ──
   const navItems = document.querySelectorAll('.nav-item');
@@ -19,8 +31,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function switchTab(tabId) {
     navItems.forEach(item => {
-      if (item.dataset.tab === tabId) item.classList.add('active');
-      else item.classList.remove('active');
+      const on = item.dataset.tab === tabId;
+      item.classList.toggle('active', on);
+      if (on) item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
     });
     panels.forEach(p => {
       if (p.id === `panel-${tabId}`) p.classList.add('active');
@@ -33,6 +47,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   navItems.forEach(item => {
     item.addEventListener('click', () => switchTab(item.dataset.tab));
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('musicdl_theme', theme);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#f3eee4' : '#12110f');
+    if (themeToggle) {
+      const light = theme === 'light';
+      themeToggle.setAttribute('aria-pressed', light ? 'true' : 'false');
+      themeToggle.setAttribute('aria-label', light ? '切换到暗色主题' : '切换到明亮主题');
+    }
+  }
+
+  applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+  themeToggle?.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
   });
 
   // ── Bottom Player UI Binding ──
@@ -111,7 +144,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!coverSrc && track.rel_path && track.has_cover) {
       coverSrc = `/api/library/cover/${encodeURIComponent(track.rel_path)}`;
     }
-    playerCoverImg.src = coverSrc || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="%236366f1"%3E%3Cpath d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/%3E%3C/svg%3E';
+    playerCoverImg.src = coverSrc || COVER_FALLBACK;
+    playerCoverImg.alt = track.song_name ? `${track.song_name} 的封面` : '专辑封面';
+    markPlayingRow();
 
     // Update Lyrics Info
     document.getElementById('lyricsTitle').textContent = track.song_name || '歌词';
@@ -165,7 +200,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     player.audio.pause();
     player.audio.src = '';
     playerTitle.textContent = '未在播放';
-    playerArtist.textContent = '从列表点击播放歌曲';
+    playerArtist.textContent = '从列表点一首歌';
+    playerCoverImg.alt = '专辑封面';
+    markPlayingRow();
     lyrics.clear();
     updateQueueUI();
     UI.showToast('播放列表已清空', 'info');
@@ -174,16 +211,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   function updateQueueUI() {
     queueCount.textContent = player.queue.length;
     queueBadge.textContent = player.queue.length;
+    queueBadge.style.display = player.queue.length ? 'inline-block' : 'none';
     queueList.innerHTML = '';
 
     player.queue.forEach((t, idx) => {
       const item = document.createElement('div');
       item.className = `queue-item ${idx === player.currentIndex ? 'active' : ''}`;
       item.innerHTML = `
-        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-          ${t.song_name} - <small style="color:var(--text-muted);">${t.singers}</small>
-        </span>
-        <button class="btn-text text-danger" style="margin-left:8px;" title="移除">✕</button>
+        <span class="queue-item-title">${t.song_name} <span class="queue-item-artist">${t.singers}</span></span>
+        <button class="btn-text text-danger queue-remove" type="button" title="移除" aria-label="从播放列表移除">移除</button>
       `;
       item.addEventListener('click', () => {
         player.currentIndex = idx;
@@ -253,16 +289,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Search Logic (SSE) ──
   const globalSearchInput = document.getElementById('globalSearchInput');
-  const searchSubmitBtn = document.getElementById('searchSubmitBtn');
   const searchResultsList = document.getElementById('searchResultsList');
   const searchTableHeader = document.getElementById('searchTableHeader');
   const searchEmptyState = document.getElementById('searchEmptyState');
   const searchProgressBar = document.getElementById('searchProgressBar');
   const searchProgressText = document.getElementById('searchProgressText');
 
-  searchSubmitBtn.addEventListener('click', doSearch);
-  globalSearchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doSearch();
+  document.getElementById('globalSearchForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    doSearch();
   });
 
   function doSearch() {
@@ -310,6 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           onDownload: (t) => triggerDownload(t),
         });
         searchResultsList.appendChild(row);
+        markPlayingRow();
       },
       onSourceDone(data) {
         if (data.timed_out) {
@@ -321,7 +357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (resultCount === 0) {
           searchEmptyState.style.display = 'flex';
           searchTableHeader.style.display = 'none';
-          searchEmptyState.querySelector('h3').textContent = '未检索到相关曲目';
+          searchEmptyState.querySelector('h2').textContent = '没有找到这首歌';
           searchEmptyState.querySelector('p').textContent = '请尝试更换关键词或勾选更多音源。';
         } else {
           UI.showToast(`搜索完成，共检索到 ${resultCount} 首曲目`, 'success');
@@ -342,7 +378,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const playlistEmptyState = document.getElementById('playlistEmptyState');
   const playlistActionsBar = document.getElementById('playlistActionsBar');
   const playlistStatsText = document.getElementById('playlistStatsText');
-  const playlistSelectAllBtn = document.getElementById('playlistSelectAllBtn');
   const playlistBatchDownloadBtn = document.getElementById('playlistBatchDownloadBtn');
 
   startParsePlaylistBtn.addEventListener('click', startParsePlaylist);
@@ -378,6 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           onDownload: (t) => triggerDownload(t),
         });
         playlistResultsList.appendChild(row);
+        markPlayingRow();
       },
       onDone(data) {
         playlistStatsText.textContent = `歌单解析完成，共 ${activePlaylistTracks.length} 首`;
@@ -500,6 +536,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         libraryTracksList.appendChild(row);
       });
+      markPlayingRow();
     } catch (e) {
       console.error('Failed to load library:', e);
     }
@@ -525,7 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       card.innerHTML = `
         <input type="checkbox" value="${s.id}" ${isChecked ? 'checked' : ''}>
         <div class="source-card-info">
-          <h4>${s.label} <small style="color:var(--text-muted);">(${s.category_label})</small></h4>
+          <h4>${s.label} <small class="source-cat">${s.category_label}</small></h4>
           <p>${s.desc}</p>
         </div>
       `;

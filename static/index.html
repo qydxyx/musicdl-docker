@@ -3,52 +3,64 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>musicdl Web UI · 现代化音乐解析与播放中心</title>
+  <title>musicdl</title>
+  <meta name="description" content="搜索、试听并下载音乐，管理已经保存到本地的曲目。">
+  <meta name="theme-color" content="#12110f">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('musicdl_theme');
+      var theme = saved === 'light' || saved === 'dark'
+        ? saved
+        : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.dataset.theme = theme;
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === 'light' ? '#f3eee4' : '#12110f';
+    })();
+  </script>
 </head>
-<body class="dark-theme">
+<body>
+  <a class="skip-link" href="#main">跳到内容</a>
   <div class="app-container">
-    <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-icon">
-          <span></span><span></span><span></span><span></span>
-        </div>
+        <div class="brand-mark" aria-hidden="true"></div>
         <div class="brand-info">
-          <h2>musicdl</h2>
+          <h1>musicdl</h1>
           <span class="version-tag" id="appVersion">v1.0.0</span>
         </div>
       </div>
 
-      <nav class="nav-menu">
-        <button class="nav-item active" data-tab="search">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm11 3l-6-6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-          <span>音乐搜索</span>
+      <nav class="nav-menu" aria-label="主导航">
+        <button class="nav-item active" data-tab="search" aria-current="page">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm11 3l-6-6" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round"/></svg>
+          <span>搜索</span>
         </button>
         <button class="nav-item" data-tab="playlist">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 18V5l12-2v13M9 9l12-2M6 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-          <span>歌单解析</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2M6 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>歌单</span>
         </button>
         <button class="nav-item" data-tab="library">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-          <span>本地音乐库</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15z" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>曲库</span>
           <span class="badge" id="libraryCount">0</span>
         </button>
         <button class="nav-item" data-tab="downloads">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-          <span>下载管理</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>下载</span>
           <span class="badge pulse" id="downloadBadge" style="display:none;">0</span>
         </button>
         <button class="nav-item" data-tab="settings">
-          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="2" fill="none"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="2" fill="none"/></svg>
-          <span>系统设置</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" stroke-width="1.75" fill="none"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linejoin="round"/></svg>
+          <span>设置</span>
         </button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="disk-usage">
           <div class="disk-header">
-            <span>存储空间</span>
+            <span>存储</span>
             <span id="diskFreeText">-- GB 可用</span>
           </div>
           <div class="disk-bar"><div class="disk-fill" id="diskFill" style="width: 0%;"></div></div>
@@ -56,252 +68,250 @@
       </div>
     </aside>
 
-    <!-- Main Content Panels -->
-    <main class="main-content">
-      <!-- Top Search Bar -->
+    <main class="main-content" id="main">
       <header class="top-header">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          <input type="text" id="globalSearchInput" placeholder="搜索歌曲名、歌手、专辑，或直接粘贴歌单链接..." autocomplete="off">
-          <button class="btn btn-primary" id="searchSubmitBtn">搜索</button>
-        </div>
-        <div class="header-actions">
-          <button class="icon-btn" id="openQueueBtn" title="当前播放队列">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <span class="badge" id="queueBadge">0</span>
-          </button>
-          <button class="icon-btn" id="toggleThemeBtn" title="切换暗色/亮色">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" fill="currentColor"/></svg>
-          </button>
-        </div>
+        <form class="search-box" role="search" id="globalSearchForm">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="11" cy="11" r="7.25" stroke="currentColor" stroke-width="1.75" fill="none"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          <label class="sr-only" for="globalSearchInput">搜索</label>
+          <input type="text" id="globalSearchInput" placeholder="歌名、歌手或专辑，也可以粘贴歌单链接" autocomplete="off">
+          <button class="btn btn-primary" id="searchSubmitBtn" type="submit">搜索</button>
+        </form>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
+          <span class="when-dark">明亮</span>
+          <span class="when-light">暗色</span>
+        </button>
       </header>
 
       <div class="tab-content-wrapper">
-        <!-- TAB 1: Search Music -->
-        <section class="tab-panel active" id="panel-search">
+        <section class="tab-panel active" id="panel-search" aria-label="搜索">
           <div class="source-filter-bar">
             <div class="source-filter-header">
-              <span class="section-title">搜索源过滤</span>
+              <span class="section-title">这次搜索使用的音源</span>
               <div class="filter-actions">
-                <button class="btn-text" id="presetDefaultSources">推荐源</button>
-                <button class="btn-text" id="selectAllSources">全选</button>
-                <button class="btn-text" id="clearAllSources">清空</button>
+                <button class="btn-text" id="presetDefaultSources" type="button">推荐</button>
+                <button class="btn-text" id="selectAllSources" type="button">全选</button>
+                <button class="btn-text" id="clearAllSources" type="button">清空</button>
               </div>
             </div>
             <div class="source-chips" id="searchSourceChips"></div>
             <div class="search-progress-bar" id="searchProgressBar" style="display:none;">
-              <div class="spinner"></div>
-              <span id="searchProgressText">正在从各音源并发检索...</span>
+              <span class="progress-pulse" aria-hidden="true"></span>
+              <span id="searchProgressText">正在从各音源检索</span>
             </div>
           </div>
 
           <div class="results-container">
             <div class="table-header" id="searchTableHeader" style="display: none;">
-              <span class="col col-title">曲目 / 歌手</span>
+              <span class="col col-title">曲目</span>
               <span class="col col-album">专辑</span>
               <span class="col col-duration">时长</span>
-              <span class="col col-size">大小</span>
+              <span class="col col-size">格式</span>
               <span class="col col-source">音源</span>
               <span class="col col-actions">操作</span>
             </div>
             <div class="track-list" id="searchResultsList"></div>
 
             <div class="empty-state" id="searchEmptyState">
-              <div class="empty-icon">🎵</div>
-              <h3>探索数千万首高保真音乐</h3>
-              <p>输入关键词或歌名，结果将通过 SSE 流式实时呈现，多源并发无需漫长等待。</p>
+              <span class="empty-kicker">搜索</span>
+              <h2>找一首歌</h2>
+              <p>输入歌名、歌手或专辑。命中的结果会逐条出现，不用等所有音源都返回。</p>
             </div>
           </div>
         </section>
 
-        <!-- TAB 2: Playlist Link Parse -->
-        <section class="tab-panel" id="panel-playlist">
+        <section class="tab-panel" id="panel-playlist" aria-label="歌单">
           <div class="playlist-input-card">
-            <h3>歌单与分享链接解析</h3>
-            <p>支持粘贴网易云音乐、QQ音乐、酷我、酷狗、咪咕、B站音频、Spotify 等平台的歌单或专辑分享链接。</p>
+            <span class="empty-kicker">链接</span>
+            <h2>解析歌单</h2>
+            <p>粘贴网易云音乐、QQ 音乐、酷我、酷狗、咪咕、B 站或 Spotify 的公开歌单、专辑链接。</p>
             <div class="playlist-form">
-              <input type="text" id="playlistUrlInput" placeholder="例如: https://music.163.com/#/playlist?id=xxx 或 QQ音乐/酷我链接">
+              <label class="sr-only" for="playlistUrlInput">歌单链接</label>
+              <input type="text" id="playlistUrlInput" placeholder="https://music.163.com/playlist?id=…" autocomplete="off">
+              <label class="sr-only" for="playlistSourceSelect">平台</label>
               <select id="playlistSourceSelect">
                 <option value="">自动检测平台</option>
                 <option value="NeteaseMusicClient">网易云音乐</option>
-                <option value="QQMusicClient">QQ音乐</option>
+                <option value="QQMusicClient">QQ 音乐</option>
                 <option value="KuwoMusicClient">酷我音乐</option>
                 <option value="KugouMusicClient">酷狗音乐</option>
                 <option value="MiguMusicClient">咪咕音乐</option>
-                <option value="BilibiliMusicClient">B站音频</option>
+                <option value="BilibiliMusicClient">B 站音频</option>
                 <option value="SpotifyMusicClient">Spotify</option>
               </select>
-              <button class="btn btn-primary" id="startParsePlaylistBtn">解析歌单</button>
+              <button class="btn btn-primary" id="startParsePlaylistBtn" type="button">解析</button>
             </div>
             <div class="playlist-actions-bar" id="playlistActionsBar" style="display:none;">
               <span id="playlistStatsText">已解析 0 首</span>
-              <div class="btn-group">
-                <button class="btn btn-sm" id="playlistSelectAllBtn">全选</button>
-                <button class="btn btn-sm btn-accent" id="playlistBatchDownloadBtn">批量下载勾选曲目</button>
-              </div>
+              <button class="btn btn-sm btn-primary" id="playlistBatchDownloadBtn" type="button">下载全部</button>
             </div>
           </div>
 
           <div class="results-container">
             <div class="track-list" id="playlistResultsList"></div>
             <div class="empty-state" id="playlistEmptyState">
-              <div class="empty-icon">📋</div>
-              <h3>粘贴歌单链接开始解析</h3>
-              <p>解析出的曲目支持试听、一键批量下载并自动嵌入封面与歌词。</p>
+              <span class="empty-kicker">歌单</span>
+              <h2>还没有解析结果</h2>
+              <p>贴上一条分享链接。解析出来的曲目可以试听，也可以一次下载。</p>
             </div>
           </div>
         </section>
 
-        <!-- TAB 3: Local Music Library -->
-        <section class="tab-panel" id="panel-library">
-          <div class="library-toolbar">
-            <div class="library-search">
-              <input type="text" id="libraryFilterInput" placeholder="在已下载的本地音乐中快速筛选...">
+        <section class="tab-panel" id="panel-library" aria-label="曲库">
+          <div class="panel-head">
+            <div class="panel-intro">
+              <h2>曲库</h2>
+              <p>已经下载到本地的曲目，断网也能播。</p>
             </div>
-            <button class="btn" id="refreshLibraryBtn">
-              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-              <span>刷新</span>
-            </button>
+            <div class="library-toolbar">
+              <div class="library-search">
+                <label class="sr-only" for="libraryFilterInput">筛选曲库</label>
+                <input type="text" id="libraryFilterInput" placeholder="筛选歌名、歌手或专辑" autocomplete="off">
+              </div>
+              <button class="btn" id="refreshLibraryBtn" type="button">刷新</button>
+            </div>
           </div>
 
           <div class="results-container">
             <div class="track-list" id="libraryTracksList"></div>
             <div class="empty-state" id="libraryEmptyState">
-              <div class="empty-icon">📂</div>
-              <h3>音乐库暂无下载曲目</h3>
-              <p>在搜索页搜索并点击下载，音乐将保存在本地并展示在此处支持离线无网播放。</p>
+              <h2>还没有下载过的歌</h2>
+              <p>在搜索里点下载，文件会留在这里。</p>
             </div>
           </div>
         </section>
 
-        <!-- TAB 4: Download Manager -->
-        <section class="tab-panel" id="panel-downloads">
-          <div class="downloads-header">
-            <h3>任务中心</h3>
-            <span class="text-muted" id="downloadsCountText">0 个任务</span>
+        <section class="tab-panel" id="panel-downloads" aria-label="下载">
+          <div class="panel-head">
+            <div class="panel-intro">
+              <h2>下载</h2>
+              <p><span id="downloadsCountText">0 个任务</span></p>
+            </div>
           </div>
           <div class="downloads-list" id="downloadsActiveList"></div>
           <div class="empty-state" id="downloadsEmptyState">
-            <div class="empty-icon">⬇️</div>
-            <h3>当前没有进行中的下载</h3>
-            <p>搜索喜欢的歌曲点击“下载”，实时进度与下载速率将在此呈现。</p>
+            <h2>没有进行中的任务</h2>
+            <p>点一首歌的下载，进度和速度会显示在这里。</p>
           </div>
         </section>
 
-        <!-- TAB 5: Settings -->
-        <section class="tab-panel" id="panel-settings">
+        <section class="tab-panel" id="panel-settings" aria-label="设置">
+          <div class="panel-intro">
+            <h2>设置</h2>
+            <p>下载目录、超时、代理，以及默认参与搜索的音源。</p>
+          </div>
           <div class="settings-container">
             <div class="settings-card">
-              <h3>存储与下载设置</h3>
+              <h3>存储与下载</h3>
               <div class="form-group">
-                <label>音乐下载存储目录</label>
+                <label for="cfgDownloadDir">音乐保存目录</label>
                 <input type="text" id="cfgDownloadDir" class="form-control" placeholder="./downloads">
-                <small class="form-text">音频、封面及 .lrc 歌词将保存于此目录。</small>
+                <small class="form-text">音频、封面和 .lrc 歌词写在这个目录里。</small>
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label>单源最大检索数量</label>
+                  <label for="cfgSearchSize">每个音源最多返回</label>
                   <input type="number" id="cfgSearchSize" class="form-control" min="1" max="50" value="8">
                 </div>
                 <div class="form-group">
-                  <label>单源超时限制 (秒)</label>
+                  <label for="cfgTimeout">单个音源超时（秒）</label>
                   <input type="number" id="cfgTimeout" class="form-control" min="5" max="120" value="25">
                 </div>
               </div>
               <div class="form-check-group">
                 <label class="checkbox-label">
                   <input type="checkbox" id="cfgEmbedCover" checked>
-                  <span>自动嵌入高清专辑封面至音频 (ID3/FLAC Tag)</span>
+                  <span>把封面写进音频标签</span>
                 </label>
                 <label class="checkbox-label">
                   <input type="checkbox" id="cfgEmbedLyrics" checked>
-                  <span>自动提取并保存 .lrc 同步歌词文件</span>
+                  <span>同时保存 .lrc 歌词</span>
                 </label>
               </div>
             </div>
 
             <div class="settings-card">
-              <h3>网络与代理配置</h3>
+              <h3>网络</h3>
               <div class="form-group">
-                <label>HTTP / SOCKS5 代理</label>
-                <input type="text" id="cfgProxy" class="form-control" placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
-                <small class="form-text">若需使用 YouTube、SoundCloud、Spotify 等国际平台，请配置有效代理。</small>
+                <label for="cfgProxy">HTTP / SOCKS5 代理</label>
+                <input type="text" id="cfgProxy" class="form-control" placeholder="http://127.0.0.1:7890">
+                <small class="form-text">YouTube、SoundCloud、Spotify 这类音源需要能访问外网的代理。</small>
               </div>
             </div>
 
             <div class="settings-card">
-              <h3>默认激活的音乐源</h3>
-              <p class="form-text">勾选后将在全局搜索时默认启用该音源：</p>
+              <h3>默认音源</h3>
+              <p class="form-text">勾选后，新的搜索会默认带上这些音源。搜索页里仍可以临时改。</p>
               <div class="sources-matrix" id="settingsSourcesMatrix"></div>
             </div>
 
             <div class="settings-actions">
-              <button class="btn btn-primary" id="saveSettingsBtn">保存全部配置</button>
+              <button class="btn btn-primary" id="saveSettingsBtn" type="button">保存配置</button>
             </div>
           </div>
         </section>
       </div>
     </main>
 
-    <!-- Synchronized Lyrics Modal -->
-    <div class="lyrics-modal" id="lyricsModal">
+    <aside class="lyrics-modal" id="lyricsModal" aria-label="歌词">
       <div class="lyrics-modal-header">
         <div class="lyrics-track-info">
-          <h3 id="lyricsTitle">歌词</h3>
+          <h2 id="lyricsTitle">歌词</h2>
           <span id="lyricsArtist"></span>
         </div>
-        <button class="icon-btn" id="closeLyricsBtn">✕</button>
+        <button class="icon-btn" id="closeLyricsBtn" type="button" aria-label="关闭歌词">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
       </div>
       <div class="lyrics-content-scroll" id="lyricsScroll">
         <div class="lyrics-empty" id="lyricsEmpty">暂无歌词</div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Playlist Queue Drawer -->
-    <div class="queue-drawer" id="queueDrawer">
+    <aside class="queue-drawer" id="queueDrawer" aria-label="播放列表">
       <div class="queue-header">
-        <h3>当前播放列表 (<span id="queueCount">0</span>)</h3>
+        <h2>播放列表 <span class="queue-count" id="queueCount">0</span></h2>
         <div class="queue-actions">
-          <button class="btn-text text-danger" id="clearQueueBtn">清空</button>
-          <button class="icon-btn" id="closeQueueBtn">✕</button>
+          <button class="btn-text text-danger" id="clearQueueBtn" type="button">清空</button>
+          <button class="icon-btn" id="closeQueueBtn" type="button" aria-label="关闭播放列表">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          </button>
         </div>
       </div>
       <div class="queue-list" id="queueList"></div>
-    </div>
+    </aside>
 
-    <!-- Sticky Bottom Player Bar -->
     <footer class="player-bar" id="playerBar">
       <div class="player-meta">
         <div class="player-cover" id="playerCoverWrapper">
-          <img id="playerCoverImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%236366f1'%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E" alt="Cover">
+          <img id="playerCoverImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='%236b6258'%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E" alt="专辑封面">
         </div>
         <div class="player-info">
           <div class="player-title" id="playerTitle">未在播放</div>
-          <div class="player-artist" id="playerArtist">从列表点击播放歌曲</div>
+          <div class="player-artist" id="playerArtist">从列表点一首歌</div>
         </div>
-        <button class="btn-lyric" id="toggleLyricsBtn" title="打开歌词">词</button>
+        <button class="btn-lyric" id="toggleLyricsBtn" type="button" title="歌词" aria-label="打开歌词">词</button>
       </div>
 
       <div class="player-controls">
         <div class="control-buttons">
-          <button class="ctrl-btn" id="btnMode" title="播放模式: 列表循环">
-            <svg viewBox="0 0 24 24" width="18" height="18" id="modeIcon"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <button class="ctrl-btn" id="btnMode" type="button" title="播放模式: 列表循环" aria-label="切换播放模式">
+            <svg viewBox="0 0 24 24" width="18" height="18" id="modeIcon" aria-hidden="true"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="ctrl-btn" id="btnPrev" title="上一首">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" fill="currentColor"/></svg>
+          <button class="ctrl-btn" id="btnPrev" type="button" title="上一首" aria-label="上一首">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" fill="currentColor"/></svg>
           </button>
-          <button class="ctrl-btn btn-play-main" id="btnPlayPause" title="播放/暂停">
-            <svg class="icon-play" viewBox="0 0 24 24" width="24" height="24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
-            <svg class="icon-pause" viewBox="0 0 24 24" width="24" height="24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>
+          <button class="ctrl-btn btn-play-main" id="btnPlayPause" type="button" title="播放或暂停" aria-label="播放或暂停">
+            <svg class="icon-play" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" width="22" height="22" style="display:none;" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>
           </button>
-          <button class="ctrl-btn" id="btnNext" title="下一首">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/></svg>
+          <button class="ctrl-btn" id="btnNext" type="button" title="下一首" aria-label="下一首">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/></svg>
           </button>
         </div>
 
         <div class="progress-container">
           <span class="time-label" id="timeCurrent">00:00</span>
-          <div class="progress-bar-wrap" id="progressBarWrap">
+          <div class="progress-bar-wrap" id="progressBarWrap" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" tabindex="0">
             <div class="progress-buffered" id="progressBuffered"></div>
             <div class="progress-fill" id="progressFill"></div>
             <div class="progress-thumb" id="progressThumb"></div>
@@ -311,11 +321,16 @@
       </div>
 
       <div class="player-extras">
-        <canvas class="audio-visualizer" id="audioVisualizer" width="160" height="36"></canvas>
+        <button class="icon-btn" id="openQueueBtn" type="button" title="播放列表" aria-label="打开播放列表">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+          <span class="badge" id="queueBadge" style="display:none;">0</span>
+        </button>
+        <canvas class="audio-visualizer" id="audioVisualizer" width="120" height="32" aria-hidden="true"></canvas>
         <div class="volume-box">
-          <button class="icon-btn" id="btnMute">
-            <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/></svg>
+          <button class="icon-btn" id="btnMute" type="button" aria-label="静音">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" fill="currentColor"/></svg>
           </button>
+          <label class="sr-only" for="volumeSlider">音量</label>
           <input type="range" id="volumeSlider" min="0" max="1" step="0.02" value="0.8">
         </div>
       </div>
@@ -323,9 +338,8 @@
   </div>
 
   <audio id="mainAudio" preload="none" crossorigin="anonymous"></audio>
-  <div class="toast-container" id="toastContainer"></div>
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-  <!-- Scripts -->
   <script src="/static/js/api.js"></script>
   <script src="/static/js/lyrics.js"></script>
   <script src="/static/js/player.js"></script>
