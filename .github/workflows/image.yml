@@ -44,20 +44,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Make the package public
-        if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          name="${GITHUB_REPOSITORY#*/}"
-          for _ in 1 2 3 4 5 6; do
-            if gh api --method PATCH \
-              -H "Accept: application/vnd.github+json" \
-              "/user/packages/container/${name}" \
-              -f visibility=public; then
-              exit 0
-            fi
-            sleep 5
-          done
-          exit 1
