@@ -1,4 +1,4 @@
-// ── Full-Featured Audio Player with Web Audio Visualizer & MediaSession ──
+// ── Full-Featured Audio Player with Web Audio Visualizer, Auto-Resolve & Sync ──
 class AudioPlayer {
   constructor(audioEl, visualizerCanvas) {
     this.audio = audioEl;
@@ -7,7 +7,7 @@ class AudioPlayer {
 
     this.queue = [];
     this.currentIndex = -1;
-    this.modes = ['loop', 'single', 'shuffle']; // loop (list), single, shuffle
+    this.modes = ['loop', 'single', 'shuffle'];
     this.modeIndex = 0;
 
     this.audioCtx = null;
@@ -17,10 +17,59 @@ class AudioPlayer {
 
     this.onTrackChange = null;
     this.onTimeUpdate = null;
+    this.onStateMutate = null;
+    this._loadSeq = 0;
 
     this.initAudioEvents();
     this.initKeyboardShortcuts();
     this.initVolume();
+  }
+
+  get playMode() {
+    return this.modes[this.modeIndex] || 'loop';
+  }
+
+  setPlayMode(mode, silent = false) {
+    const idx = this.modes.indexOf(mode);
+    if (idx === -1) return;
+    this.modeIndex = idx;
+    const btn = document.getElementById('btnMode');
+    if (btn) {
+      const titles = { loop: '列表循环', single: '单曲循环', shuffle: '随机播放' };
+      btn.title = `播放模式: ${titles[mode]}`;
+      if (!silent) UI.showToast(`切换为: ${titles[mode]}`, 'info');
+    }
+  }
+
+  notifyStateMutate() {
+    if (typeof this.onStateMutate === 'function') {
+      this.onStateMutate(this.serializeState());
+    }
+  }
+
+  serializeState() {
+    return {
+      queue: this.queue.map((t) => ({
+        token: t.token || '',
+        rel_path: t.rel_path || '',
+        has_cover: Boolean(t.has_cover),
+        source: t.source || '',
+        source_label: t.source_label || '',
+        source_short: t.source_short || '',
+        song_id: t.song_id || '',
+        song_name: t.song_name || '',
+        singers: t.singers || '',
+        album: t.album || '',
+        ext: t.ext || 'mp3',
+        duration: t.duration || '',
+        file_size: t.file_size || '',
+        cover_url: t.cover_url || '',
+        lossless: Boolean(t.lossless),
+      })),
+      current_index: this.currentIndex,
+      play_mode: this.playMode,
+      position_sec: Number.isFinite(this.audio.currentTime) ? Math.floor(this.audio.currentTime) : 0,
+    };
   }
 
   initAudioEvents() {
@@ -46,9 +95,24 @@ class AudioPlayer {
     this.audio.addEventListener('pause', () => {
       this.updatePlayStateUI(false);
       this.updateMediaSessionState('paused');
+      this.notifyStateMutate();
     });
 
-    this.audio.addEventListener('error', (e) => {
+    this.audio.addEventListener('error', async (e) => {
+      if (!this.audio.getAttribute('src')) return;
+      const track = this.queue[this.currentIndex];
+      if (track && !track.rel_path && !track._retriedResolve) {
+        track._retriedResolve = true;
+        track.token = '';
+        try {
+          const resolved = await API.resolveTrack(track);
+          Object.assign(track, resolved);
+          await this.loadCurrentTrack(true, { skipMutate: true });
+          return;
+        } catch (resolveErr) {
+          console.warn('Auto re-resolve failed:', resolveErr);
+        }
+      }
       console.error('Audio playback error:', e);
       UI.showToast('播放失败，音频地址可能已失效', 'error');
     });
@@ -121,42 +185,97 @@ class AudioPlayer {
     if (slider) slider.value = val;
   }
 
+  _isSameTrack(a, b) {
+    if (!a || !b) return false;
+    if (a.rel_path && b.rel_path && a.rel_path === b.rel_path) return true;
+    if (a.token && b.token && a.token === b.token) return true;
+    if (a.item_id && b.item_id && a.item_id === b.item_id) return true;
+    if (a.song_name && b.song_name && a.song_name === b.song_name && (a.singers || '') === (b.singers || '') && !a.token && !b.token) {
+      return true;
+    }
+    return false;
+  }
+
   playTrack(track) {
-    // Add to queue if not exists, or switch index
-    let idx = this.queue.findIndex(t => t.token === track.token || (t.rel_path && t.rel_path === track.rel_path));
+    let idx = this.queue.findIndex((t) => this._isSameTrack(t, track));
     if (idx === -1) {
-      this.queue.push(track);
+      this.queue.push(Object.assign({}, track));
       idx = this.queue.length - 1;
+    } else {
+      Object.assign(this.queue[idx], track);
     }
     this.currentIndex = idx;
     this.loadCurrentTrack(true);
   }
 
-  loadCurrentTrack(autoPlay = true) {
-    if (this.currentIndex < 0 || this.currentIndex >= this.queue.length) return;
-    const track = this.queue[this.currentIndex];
+  replaceQueue(tracks, startIndex = 0, autoPlay = true) {
+    this.queue = (tracks || []).map((t) => Object.assign({}, t));
+    if (this.queue.length === 0) {
+      this.currentIndex = -1;
+      this.audio.pause();
+      this.audio.removeAttribute('src');
+      this.notifyStateMutate();
+      return;
+    }
+    this.currentIndex = Math.max(0, Math.min(startIndex, this.queue.length - 1));
+    this.loadCurrentTrack(autoPlay);
+  }
 
-    // Determine audio source URL: local file or remote token stream
+  async loadCurrentTrack(autoPlay = true, opts = {}) {
+    if (this.currentIndex < 0 || this.currentIndex >= this.queue.length) return;
+    const seq = ++this._loadSeq;
+    const track = this.queue[this.currentIndex];
+    track._retriedResolve = false;
+
+    if (this.onTrackChange) this.onTrackChange(track, this.currentIndex);
+
+    if (!track.rel_path && !track.token) {
+      try {
+        const resolved = await API.resolveTrack(track);
+        if (seq !== this._loadSeq) return;
+        Object.assign(track, resolved);
+        if (this.onTrackChange) this.onTrackChange(track, this.currentIndex);
+      } catch (err) {
+        if (seq !== this._loadSeq) return;
+        UI.showToast(err.message || '无法解析该在线曲目', 'error');
+        return;
+      }
+    }
+
     if (track.rel_path) {
       this.audio.src = `/api/library/stream/${encodeURIComponent(track.rel_path)}`;
     } else if (track.token) {
       this.audio.src = `/api/stream/${track.token}`;
+    } else {
+      return;
+    }
+
+    if (typeof opts.resumeSec === 'number' && opts.resumeSec > 0) {
+      const targetSec = opts.resumeSec;
+      const onLoaded = () => {
+        if (this.audio.duration && targetSec < this.audio.duration) {
+          this.audio.currentTime = targetSec;
+        }
+      };
+      this.audio.addEventListener('loadedmetadata', onLoaded, { once: true });
     }
 
     if (autoPlay) {
-      this.audio.play().catch(e => console.warn('AutoPlay blocked:', e));
+      this.audio.play().catch((e) => console.warn('AutoPlay blocked:', e));
     }
 
     this.updateMediaSession(track);
-    if (this.onTrackChange) this.onTrackChange(track, this.currentIndex);
+    if (!opts.skipMutate) {
+      this.notifyStateMutate();
+    }
   }
 
   togglePlay() {
     if (this.audio.paused) {
-      if (!this.audio.src && this.queue.length > 0) {
-        this.currentIndex = 0;
+      if (!this.audio.getAttribute('src') && this.queue.length > 0) {
+        if (this.currentIndex < 0) this.currentIndex = 0;
         this.loadCurrentTrack(true);
-      } else {
+      } else if (this.audio.getAttribute('src')) {
         this.audio.play();
       }
     } else {
@@ -197,12 +316,8 @@ class AudioPlayer {
   toggleMode() {
     this.modeIndex = (this.modeIndex + 1) % this.modes.length;
     const mode = this.modes[this.modeIndex];
-    const btn = document.getElementById('btnMode');
-    if (btn) {
-      const titles = { loop: '列表循环', single: '单曲循环', shuffle: '随机播放' };
-      btn.title = `播放模式: ${titles[mode]}`;
-      UI.showToast(`切换为: ${titles[mode]}`, 'info');
-    }
+    this.setPlayMode(mode, false);
+    this.notifyStateMutate();
     return mode;
   }
 
@@ -259,8 +374,10 @@ class AudioPlayer {
   // ── Keyboard Shortcuts ──
   initKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Don't trigger when user is typing in an input
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        return;
+      }
+      if (document.querySelector('dialog[open]') || !document.getElementById('authOverlay')?.hidden) {
         return;
       }
 

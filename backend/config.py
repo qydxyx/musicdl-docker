@@ -30,6 +30,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     'proxy': '',
     'embed_cover': True,
     'embed_lyrics': True,
+    'allow_registration': False,
     'host': '127.0.0.1',
     'port': 8080,
 }
@@ -44,20 +45,26 @@ class ConfigManager:
             os.path.join(get_working_dir(), 'data')
         )
         os.makedirs(self._data_dir, exist_ok=True)
-        self._config_file = os.path.join(self._data_dir, 'config.json')
         self._config = dict(DEFAULT_CONFIG)
         self._load()
 
+    @property
+    def config_file(self) -> str:
+        data_dir = self.data_dir
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, 'config.json')
+
     def _load(self):
         with self._lock:
-            if os.path.exists(self._config_file):
+            cfg_path = self.config_file
+            if os.path.exists(cfg_path):
                 try:
-                    with open(self._config_file, 'r', encoding='utf-8') as f:
+                    with open(cfg_path, 'r', encoding='utf-8') as f:
                         loaded = json.load(f)
                         if isinstance(loaded, dict):
                             self._config.update(loaded)
                 except Exception as e:
-                    print(f"[Config] Failed to load {self._config_file}: {e}")
+                    print(f"[Config] Failed to load {cfg_path}: {e}")
 
             # Apply environment overrides
             if 'HOST' in os.environ:
@@ -75,6 +82,10 @@ class ConfigManager:
             # Ensure download dir exists
             os.makedirs(self._config['download_dir'], exist_ok=True)
 
+    @property
+    def data_dir(self) -> str:
+        return os.environ.get('MUSICDL_DATA_DIR', self._data_dir)
+
     def get(self, key: str, default: Any = None) -> Any:
         with self._lock:
             return self._config.get(key, default)
@@ -91,11 +102,12 @@ class ConfigManager:
             # Ensure download directory exists if modified
             if 'download_dir' in new_data:
                 os.makedirs(self._config['download_dir'], exist_ok=True)
+            cfg_path = self.config_file
             try:
-                with open(self._config_file, 'w', encoding='utf-8') as f:
+                with open(cfg_path, 'w', encoding='utf-8') as f:
                     json.dump(self._config, f, indent=2, ensure_ascii=False)
             except Exception as e:
-                print(f"[Config] Failed to save {self._config_file}: {e}")
+                print(f"[Config] Failed to save {cfg_path}: {e}")
             return dict(self._config)
 
 

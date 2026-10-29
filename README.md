@@ -13,8 +13,14 @@
 
 ## 核心特性
 
+- 👥 **多用户账号与角色权限系统**：内置轻量化 SQLite (`WAL` 模式) 多用户认证（首次启动引导初始化管理员账号，`HttpOnly` 会话 Cookie，支持管理员后台增删改成员账号或按需开放自助注册）。区分 `admin`（管理系统设置、音源与物理文件删除）与 `user` 成员权限。
+- 🎶 **持久化混合歌单与多用户同步**：
+  - **自建混合歌单**：支持将在线搜索结果、外部平台解析结果、当前播放队列或本地曲库曲目收藏进歌单；支持整单一键离线缓存下载，下载完成后自动绑定本地音频直出播放，未下载曲目过期后自动后台重解析音源。
+  - **实时共享与多人协作**：歌单支持设为私有、全员公开（只读或全员可协作），或精确授权指定成员为 `viewer`（只读同步）或 `editor`（协作增删排序），变更通过 SSE 毫秒级推送到在线成员界面。
+  - **为多用户创建与批量分发同步**：管理员可直接为指定用户代建歌单；任意歌单支持勾选多位目标用户一键**分发副本**，再次点击「同步更新」即可将最新曲目列表覆盖同步至各成员副本而不产生重复歌单。
+- 🔄 **同账号跨设备播放队列同步**：自动持久化每个账号的播放队列、当前曲目、播放模式与播放进度，并通过 `/api/events` SSE 在手机、平板与桌面浏览器间实时同步。
 - ⚡ **多源并发流式搜索 (SSE)**：驱动 `musicdl` 底层解析引擎，每解析成功一首歌曲立即通过 Server-Sent Events (SSE) 实时推向前端，多音源并发、独立看门狗超时保护，彻底告别整页等待与冻结卡死。
-- 📋 **歌单 / 专辑一键解析**：支持粘贴主流平台（网易云音乐、QQ音乐、酷我、酷狗、咪咕、B站音频、Spotify 等）的公开歌单或分享链接，自动解析出全部单曲并支持一键批量勾选下载。
+- 📋 **外部歌单 / 专辑一键解析导入**：支持粘贴主流平台（网易云音乐、QQ音乐、酷我、酷狗、咪咕、B站音频、Spotify 等）的公开歌单或分享链接，解析后可一键保存为自建歌单或批量下载。
 - 🎧 **音频代理与 Range 拖拽寻道**：内建防盗链代理及 HTTP 206 Partial Content 支持，无需整首下载即可在浏览器中即点即播，进度条任意拖拽跳转。
 - 🏷️ **自动内嵌高清封面与标签 (Mutagen)**：下载时自动向 MP3 / FLAC / M4A 文件中写入 ID3 / FLAC Vorbis 标签（歌曲名、艺术家、专辑名）并嵌入高清专辑封面，同时提取生成同名 `.lrc` 歌词文件，与 Apple Music、车机及 Navidrome / Plex / Jellyfin 完美兼容。
 - 📁 **本地离线音乐库**：已下载音乐独立界面管理，支持离线秒播、下载到浏览器本地、安全删除与存储空间概览。
@@ -69,10 +75,10 @@ tar -xzf musicdl-web-*.tar.gz
 docker compose up -d
 ```
 
-Compose 文件里的镜像是 `ghcr.io/qydxyx/musicdl-docker:latest`，启动时会拉取它。自定义端口：
+Compose 文件里的镜像是 `ghcr.io/qydxyx/musicdl-docker:latest`，启动时会拉取它。可通过环境变量或 `.env` 文件自定义端口与宿主机/NAS 音乐目录：
 
 ```bash
-PORT=8080 docker compose up -d
+PORT=8080 DOWNLOADS_DIR=/vol2/1000/Music/musicdl/downloads docker compose up -d
 ```
 
 #### 单容器命令启动
@@ -89,8 +95,8 @@ docker run -d \
 ```
 
 > **持久化目录说明**：
-> - `./downloads`：存放下载的音乐文件、内嵌封面与歌词
-> - `./data`：存放系统配置（音源选择、Cookie、代理设置等）
+> - `./downloads`（或 `DOWNLOADS_DIR`）：所有成员共享的离线音乐文件、内嵌封面与 `.lrc` 歌词目录
+> - `./data`：存放 SQLite 数据库 `musicdl.db`（用户账号、会话、自建/共享歌单、播放队列状态）与系统配置 `config.json`
 
 ---
 
@@ -166,20 +172,34 @@ make clean        # 清理打包产生的 build/dist 临时文件
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
+| `/api/auth/me` | GET | 查询当前登录态、是否需首次初始化管理员、是否开放注册 |
+| `/api/auth/setup` | POST | 首次启动初始化首个管理员账号 |
+| `/api/auth/login` / `/api/auth/logout` | POST | 账号密码登录与注销会话 |
+| `/api/auth/register` | POST | 访客自助注册（需管理员开启 `allow_registration`） |
+| `/api/auth/profile` / `/api/auth/password` | PUT | 修改当前用户昵称与登录密码 |
+| `/api/users` / `/api/users/{id}` | GET / POST / PUT / DELETE | 用户列表（供歌单共享选择）与管理员用户管理 |
+| `/api/playlists` | GET / POST | 获取可见歌单列表 / 创建新歌单（管理员可指定 `owner_id` 代建） |
+| `/api/playlists/{id}` | GET / PUT / DELETE | 获取歌单详情与曲目、编辑元信息、删除歌单 |
+| `/api/playlists/{id}/tracks` | POST | 批量或单曲添加曲目（自动去重并匹配本地曲库文件） |
+| `/api/playlists/{id}/tracks/{item_id}` | DELETE | 从歌单移除指定曲目 |
+| `/api/playlists/{id}/tracks/reorder` | PUT | 调整歌单内曲目顺序 |
+| `/api/playlists/{id}/share` | PUT | 配置歌单公开可见性及协作成员权限（`viewer` / `editor`） |
+| `/api/playlists/{id}/distribute` | POST | 将歌单批量分发或增量同步（`mode=sync\|copy`）给多位目标用户 |
+| `/api/playlists/{id}/download` | POST | 一键将歌单内未缓存曲目加入后台离线下载队列 |
+| `/api/tracks/resolve` | POST | 为在线歌单曲目匹配本地文件或实时重解析可用音源 Token |
+| `/api/me/playback` | GET / PUT | 读取与保存当前账号的跨设备播放队列及进度状态 |
+| `/api/events` | GET | SSE 实时同步总线（推送歌单变更、共享通知与跨设备队列同步） |
 | `/api/sources` | GET | 获取全部 30+ 音乐源分类目录与激活状态 |
 | `/api/search?q={keyword}&sources={src1,src2}` | GET | SSE 长连接实时流式搜索 |
-| `/api/parse_playlist` | POST | SSE 长连接歌单/专辑链接批量解析 |
+| `/api/parse_playlist` / `/api/parse_album` | POST | SSE 长连接外部歌单/专辑链接批量解析 |
 | `/api/stream/{token}` | GET | 带 HTTP 206 Range 支持的音频播放流代理 |
-| `/api/cover/{token}` | GET | 封面图片反防盗链代理 |
-| `/api/lyric/{token}` | GET | 获取曲目同步歌词文本 |
-| `/api/download` | POST | 提交后台异步下载任务 |
-| `/api/download/progress` | GET | SSE 长连接实时推送全部任务下载进度与网速 |
-| `/api/library/tracks` | GET | 扫描并列出本地已下载音乐库 |
-| `/api/library/stream/{path}` | GET | 本地离线音频播放流 (支持 Range 拖动) |
-| `/api/library/download/{path}` | GET | 将本地文件直接下载至客户端浏览器 |
-| `/api/library/track/{path}` | DELETE | 删除本地音频及同名 `.lrc` 文件 |
-| `/api/config` | GET / PUT | 查询与更新系统设置 |
-| `/api/system_info` | GET | 获取操作系统、架构、存储剩余空间等信息 |
+| `/api/cover/{token}` / `/api/lyric/{token}` | GET | 在线封面反防盗链代理与同步歌词获取 |
+| `/api/download` / `/api/download/progress` | POST / GET | 提交后台异步下载任务与 SSE 实时进度推送 |
+| `/api/library/tracks` | GET | 扫描并列出共享本地离线音乐库 |
+| `/api/library/stream/{path}` / `/api/library/download/{path}` | GET | 本地离线音频 Range 播放流与浏览器直下 |
+| `/api/library/track/{path}` | DELETE | 删除本地音频及同名 `.lrc` 文件（仅管理员） |
+| `/api/config` | GET / PUT | 查询系统设置 / 更新全局配置（仅管理员可修改） |
+| `/api/system_info` | GET | 容器健康检查及系统存储空间信息 |
 
 ---
 

@@ -17,8 +17,9 @@ hiddenimports = (
     collect_submodules('mutagen') +
     collect_submodules('waitress') +
     collect_submodules('nodejs_wheel') +
-    ['backend', 'backend.app', 'backend.config', 'backend.sources_registry',
-     'backend.streamer', 'backend.downloader', 'backend.library']
+    ['sqlite3', 'backend', 'backend.app', 'backend.config', 'backend.sources_registry',
+     'backend.albums', 'backend.streamer', 'backend.downloader', 'backend.library',
+     'backend.db', 'backend.auth', 'backend.events', 'backend.playlists']
 )
 
 # Collect data files from nodejs_wheel (node binary for YouTube source)

@@ -98,11 +98,47 @@ def tag_audio_file(filepath: str, song_info: Any, cover_url: Optional[str] = Non
         print(f"[Mutagen] Warning: failed to tag {filepath}: {e}")
 
 
-def run_download(download_id: str, token: str):
-    """Background download worker."""
+def init_pending_download(download_id: str, name: str):
     cancel_evt = threading.Event()
     with DL_LOCK:
         CANCEL_EVENTS[download_id] = cancel_evt
+    _update_dl(
+        download_id,
+        status='pending',
+        name=name,
+        downloaded=0,
+        total=0,
+        speed=0,
+        message='排队解析中',
+    )
+
+
+def mark_download_failed(download_id: str, message: str):
+    _update_dl(download_id, status='error', speed=0, message=message)
+
+
+def mark_download_already_exists(download_id: str, rel_path: str):
+    _update_dl(
+        download_id,
+        status='done',
+        speed=0,
+        name=os.path.basename(rel_path),
+        path=rel_path,
+        message='本地曲库已存在',
+    )
+
+
+def run_download(download_id: str, token: str):
+    """Background download worker."""
+    with DL_LOCK:
+        cancel_evt = CANCEL_EVENTS.get(download_id)
+        if cancel_evt is None:
+            cancel_evt = threading.Event()
+            CANCEL_EVENTS[download_id] = cancel_evt
+
+    if cancel_evt.is_set():
+        _update_dl(download_id, status='cancelled', message='下载已取消')
+        return
 
     entry = REGISTRY.get(token)
     if not entry:
@@ -205,6 +241,17 @@ def run_download(download_id: str, token: str):
             path=audio_path,
             name=f"{base_filename}.{ext}"
         )
+
+        try:
+            rel_saved = os.path.relpath(audio_path, download_root)
+            from backend.playlists import bind_downloaded_file
+            bind_downloaded_file(
+                rel_saved,
+                str(getattr(song_info, 'song_name', '') or ''),
+                str(getattr(song_info, 'singers', '') or ''),
+            )
+        except Exception as bind_err:
+            print(f"[PlaylistBind] Warning: {bind_err}")
 
     except Exception as err:
         if os.path.exists(part_path):

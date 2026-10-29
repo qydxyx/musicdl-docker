@@ -74,6 +74,7 @@ def track_to_payload(song_info: Any, token: str, source: str) -> Dict[str, Any]:
 
     return {
         'token': token,
+        'song_id': s(getattr(song_info, 'identifier', '')),
         'source': source,
         'source_label': source_meta.get('label', source),
         'source_short': source_meta.get('short', source),

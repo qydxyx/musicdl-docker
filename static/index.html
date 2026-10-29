@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>musicdl</title>
-  <meta name="description" content="搜索、试听并下载音乐，管理已经保存到本地的曲目。">
+  <meta name="description" content="搜索、试听并下载音乐，多用户协作管理与同步歌单。">
   <meta name="theme-color" content="#12110f">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css">
@@ -22,7 +22,7 @@
 </head>
 <body>
   <a class="skip-link" href="#main">跳到内容</a>
-  <div class="app-container">
+  <div class="app-container" id="appShell">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"></div>
@@ -40,6 +40,7 @@
         <button class="nav-item" data-tab="playlist">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18V5l12-2v13M9 9l12-2M6 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>歌单</span>
+          <span class="badge" id="playlistCount">0</span>
         </button>
         <button class="nav-item" data-tab="library">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15z" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -76,10 +77,19 @@
           <input type="text" id="globalSearchInput" placeholder="歌名、歌手或专辑，也可以粘贴歌单链接" autocomplete="off">
           <button class="btn btn-primary" id="searchSubmitBtn" type="submit">搜索</button>
         </form>
-        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
-          <span class="when-dark">明亮</span>
-          <span class="when-light">暗色</span>
-        </button>
+
+        <div class="top-header-actions">
+          <button class="user-chip" id="userMenuBtn" type="button" hidden title="账号与同步设置">
+            <span class="user-avatar" id="userAvatarText" aria-hidden="true">U</span>
+            <span class="user-chip-name" id="userDisplayName">未登录</span>
+            <span class="user-role-tag" id="userRoleBadge" hidden>管理</span>
+            <span class="sync-dot" id="syncStatusDot" title="多端实时同步已连接" aria-hidden="true"></span>
+          </button>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
+            <span class="when-dark">明亮</span>
+            <span class="when-light">暗色</span>
+          </button>
+        </div>
       </header>
 
       <div class="tab-content-wrapper">
@@ -113,46 +123,129 @@
             <div class="track-list" id="searchResultsList"></div>
 
             <div class="empty-state" id="searchEmptyState">
-              <span class="empty-kicker">搜索</span>
               <h2>找一首歌</h2>
-              <p>输入歌名、歌手或专辑。命中的结果会逐条出现，不用等所有音源都返回。</p>
+              <p>输入歌名、歌手或专辑。命中的结果会逐条出现，可直接试听、加入歌单或下载保存。</p>
             </div>
           </div>
         </section>
 
         <section class="tab-panel" id="panel-playlist" aria-label="歌单">
-          <div class="playlist-input-card">
-            <span class="empty-kicker">链接</span>
-            <h2>解析歌单</h2>
-            <p>粘贴网易云音乐、QQ 音乐、酷我、酷狗、咪咕、B 站或 Spotify 的公开歌单、专辑链接。</p>
-            <div class="playlist-form">
-              <label class="sr-only" for="playlistUrlInput">歌单链接</label>
-              <input type="text" id="playlistUrlInput" placeholder="https://music.163.com/playlist?id=…" autocomplete="off">
-              <label class="sr-only" for="playlistSourceSelect">平台</label>
-              <select id="playlistSourceSelect">
-                <option value="">自动检测平台</option>
-                <option value="NeteaseMusicClient">网易云音乐</option>
-                <option value="QQMusicClient">QQ 音乐</option>
-                <option value="KuwoMusicClient">酷我音乐</option>
-                <option value="KugouMusicClient">酷狗音乐</option>
-                <option value="MiguMusicClient">咪咕音乐</option>
-                <option value="BilibiliMusicClient">B 站音频</option>
-                <option value="SpotifyMusicClient">Spotify</option>
-              </select>
-              <button class="btn btn-primary" id="startParsePlaylistBtn" type="button">解析</button>
+          <div class="playlist-collection-view" id="playlistCollectionView">
+            <div class="panel-head">
+              <div class="panel-intro">
+                <h2>歌单</h2>
+                <p>自建歌单、与成员实时协作共享，或一键分发给多个账号。</p>
+              </div>
+              <div class="playlist-head-actions">
+                <button class="btn" id="toggleUrlParserBtn" type="button" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <span>导入外部链接</span>
+                </button>
+                <button class="btn btn-primary" id="openCreatePlaylistBtn" type="button">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.85" fill="none" stroke-linecap="round"/></svg>
+                  <span>新建歌单</span>
+                </button>
+              </div>
             </div>
-            <div class="playlist-actions-bar" id="playlistActionsBar" style="display:none;">
-              <span id="playlistStatsText">已解析 0 首</span>
-              <button class="btn btn-sm btn-primary" id="playlistBatchDownloadBtn" type="button">下载全部</button>
+
+            <div class="playlist-input-card" id="externalParserSection" hidden>
+              <div class="parser-card-head">
+                <div>
+                  <h3>解析外部平台歌单链接</h3>
+                  <p>支持网易云音乐、QQ 音乐、酷我、酷狗、咪咕、B 站与 Spotify 公开歌单链接，解析后可一键存为歌单。</p>
+                </div>
+                <button class="icon-btn" id="closeUrlParserBtn" type="button" aria-label="收起外部链接解析">
+                  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div class="playlist-form">
+                <label class="sr-only" for="playlistUrlInput">歌单链接</label>
+                <input type="text" id="playlistUrlInput" placeholder="https://music.163.com/playlist?id=…" autocomplete="off">
+                <label class="sr-only" for="playlistSourceSelect">平台</label>
+                <select id="playlistSourceSelect">
+                  <option value="">自动检测平台</option>
+                  <option value="NeteaseMusicClient">网易云音乐</option>
+                  <option value="QQMusicClient">QQ 音乐</option>
+                  <option value="KuwoMusicClient">酷我音乐</option>
+                  <option value="KugouMusicClient">酷狗音乐</option>
+                  <option value="MiguMusicClient">咪咕音乐</option>
+                  <option value="BilibiliMusicClient">B 站音频</option>
+                  <option value="SpotifyMusicClient">Spotify</option>
+                </select>
+                <button class="btn btn-primary" id="startParsePlaylistBtn" type="button">解析</button>
+              </div>
+              <div class="playlist-actions-bar" id="playlistActionsBar" style="display:none;">
+                <span id="playlistStatsText">已解析 0 首</span>
+                <div class="parser-bulk-btns">
+                  <button class="btn btn-sm" id="saveParsedAsPlaylistBtn" type="button">保存为歌单</button>
+                  <button class="btn btn-sm btn-primary" id="playlistBatchDownloadBtn" type="button">下载全部</button>
+                </div>
+              </div>
+              <div class="track-list parser-results-list" id="playlistResultsList"></div>
+            </div>
+
+            <div class="playlist-filter-bar" id="playlistFilterBar" role="tablist" aria-label="歌单分类">
+              <button class="filter-pill active" data-pl-filter="all" type="button" role="tab" aria-selected="true">全部</button>
+              <button class="filter-pill" data-pl-filter="mine" type="button" role="tab" aria-selected="false">我创建的</button>
+              <button class="filter-pill" data-pl-filter="shared" type="button" role="tab" aria-selected="false">共享与协作</button>
+              <button class="filter-pill" data-pl-filter="public" type="button" role="tab" aria-selected="false">公开歌单</button>
+            </div>
+
+            <div class="playlists-grid" id="playlistsGrid"></div>
+
+            <div class="empty-state" id="playlistsEmptyState">
+              <h2>还没有歌单</h2>
+              <p>新建一张歌单来整理常听的曲目，或导入外部平台分享链接并同步给其他成员。</p>
+              <div class="empty-actions">
+                <button class="btn btn-primary" id="emptyCreatePlaylistBtn" type="button">新建第一张歌单</button>
+                <button class="btn" id="emptyOpenParserBtn" type="button">解析外部歌单链接</button>
+              </div>
             </div>
           </div>
 
-          <div class="results-container">
-            <div class="track-list" id="playlistResultsList"></div>
-            <div class="empty-state" id="playlistEmptyState">
-              <span class="empty-kicker">歌单</span>
-              <h2>还没有解析结果</h2>
-              <p>贴上一条分享链接。解析出来的曲目可以试听，也可以一次下载。</p>
+          <div class="playlist-detail-view" id="playlistDetailView" hidden>
+            <div class="detail-back-bar">
+              <button class="btn-text detail-back-btn" id="backToPlaylistsBtn" type="button">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span>全部歌单</span>
+              </button>
+            </div>
+
+            <div class="playlist-hero">
+              <img class="playlist-hero-cover" id="plDetailCover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 24 24' fill='%236b6258'%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E" alt="歌单封面">
+              <div class="playlist-hero-body">
+                <div class="playlist-hero-title-row">
+                  <h2 id="plDetailTitle">歌单名称</h2>
+                  <div class="playlist-badges" id="plDetailBadges"></div>
+                </div>
+                <p class="playlist-hero-desc" id="plDetailDesc"></p>
+                <p class="playlist-hero-meta" id="plDetailMeta"></p>
+                <div class="playlist-hero-actions">
+                  <button class="btn btn-primary" id="plPlayAllBtn" type="button">播放全部</button>
+                  <button class="btn" id="plAppendQueueBtn" type="button">加入播放队列</button>
+                  <button class="btn" id="plDownloadOfflineBtn" type="button">离线下载整单</button>
+                  <button class="btn" id="plShareSyncBtn" type="button">共享与分发</button>
+                  <button class="btn" id="plEditMetaBtn" type="button">编辑信息</button>
+                  <button class="btn btn-danger-outline" id="plDeleteBtn" type="button">删除</button>
+                  <button class="btn btn-danger-outline" id="plLeaveBtn" type="button" hidden>退出共享</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="results-container">
+              <div class="table-header" id="plDetailTableHeader" style="display: none;">
+                <span class="col col-title">曲目</span>
+                <span class="col col-album">专辑</span>
+                <span class="col col-duration">时长</span>
+                <span class="col col-size">格式</span>
+                <span class="col col-source">状态 / 来源</span>
+                <span class="col col-actions">操作</span>
+              </div>
+              <div class="track-list" id="plDetailTracksList"></div>
+              <div class="empty-state" id="plDetailEmptyState">
+                <h2>歌单里还没有曲目</h2>
+                <p>在搜索结果或本地曲库中点击曲目右侧的收藏按钮，即可将歌曲加入这张歌单。</p>
+              </div>
             </div>
           </div>
         </section>
@@ -161,7 +254,7 @@
           <div class="panel-head">
             <div class="panel-intro">
               <h2>曲库</h2>
-              <p>已经下载到本地的曲目，断网也能播。</p>
+              <p>已下载到服务器的共享本地曲目，离线直出播放。</p>
             </div>
             <div class="library-toolbar">
               <div class="library-search">
@@ -176,7 +269,7 @@
             <div class="track-list" id="libraryTracksList"></div>
             <div class="empty-state" id="libraryEmptyState">
               <h2>还没有下载过的歌</h2>
-              <p>在搜索里点下载，文件会留在这里。</p>
+              <p>在搜索或歌单里点击下载，音频文件会保存在共享曲库中。</p>
             </div>
           </div>
         </section>
@@ -191,17 +284,42 @@
           <div class="downloads-list" id="downloadsActiveList"></div>
           <div class="empty-state" id="downloadsEmptyState">
             <h2>没有进行中的任务</h2>
-            <p>点一首歌的下载，进度和速度会显示在这里。</p>
+            <p>点一首歌或整张歌单的下载，进度和网速会显示在这里。</p>
           </div>
         </section>
 
         <section class="tab-panel" id="panel-settings" aria-label="设置">
           <div class="panel-intro">
             <h2>设置</h2>
-            <p>下载目录、超时、代理，以及默认参与搜索的音源。</p>
+            <p id="settingsIntroDesc">管理用户账号、下载存储、网络代理与默认检索音源。</p>
           </div>
           <div class="settings-container">
-            <div class="settings-card">
+            <div class="settings-card" id="adminUsersCard" hidden>
+              <div class="settings-card-head">
+                <div>
+                  <h3>用户与权限管理</h3>
+                  <p class="form-text">创建成员账号、分配管理员权限，或直接为成员代建歌单。</p>
+                </div>
+                <button class="btn btn-sm btn-primary" id="openCreateUserBtn" type="button">添加用户</button>
+              </div>
+              <div class="form-check-group settings-reg-toggle">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="cfgAllowRegistration">
+                  <span>允许访客在登录页自助注册新成员账号</span>
+                </label>
+              </div>
+              <div class="users-table" id="adminUsersList"></div>
+            </div>
+
+            <div class="settings-card" id="memberAccountCard" hidden>
+              <h3>个人账号与同步</h3>
+              <p class="form-text">您的歌单与播放队列已开启跨设备实时同步。需要修改显示昵称或登录密码，请打开账号设置。</p>
+              <div class="settings-card-footer">
+                <button class="btn" id="memberOpenAccountBtn" type="button">打开账号设置</button>
+              </div>
+            </div>
+
+            <div class="settings-card" id="adminStorageCard">
               <h3>存储与下载</h3>
               <div class="form-group">
                 <label for="cfgDownloadDir">音乐保存目录</label>
@@ -230,7 +348,7 @@
               </div>
             </div>
 
-            <div class="settings-card">
+            <div class="settings-card" id="adminNetworkCard">
               <h3>网络</h3>
               <div class="form-group">
                 <label for="cfgProxy">HTTP / SOCKS5 代理</label>
@@ -239,13 +357,13 @@
               </div>
             </div>
 
-            <div class="settings-card">
+            <div class="settings-card" id="adminSourcesCard">
               <h3>默认音源</h3>
               <p class="form-text">勾选后，新的搜索会默认带上这些音源。搜索页里仍可以临时改。</p>
               <div class="sources-matrix" id="settingsSourcesMatrix"></div>
             </div>
 
-            <div class="settings-actions">
+            <div class="settings-actions" id="adminSettingsActions">
               <button class="btn btn-primary" id="saveSettingsBtn" type="button">保存配置</button>
             </div>
           </div>
@@ -254,7 +372,7 @@
     </main>
 
     <section class="now-playing" id="lyricsModal" aria-label="正在播放" aria-hidden="true">
-      <img class="now-playing-bg" id="stageBackdrop" alt="" aria-hidden="true">
+      <img class="now-playing-bg" id="stageBackdrop" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'/%3E" alt="" aria-hidden="true">
       <div class="now-playing-scrim" aria-hidden="true"></div>
       <button class="icon-btn now-playing-close" id="closeLyricsBtn" type="button" aria-label="关闭播放页">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
@@ -272,12 +390,13 @@
       </div>
     </section>
 
-    <aside class="queue-drawer" id="queueDrawer" aria-label="播放列表">
+    <aside class="queue-drawer" id="queueDrawer" aria-label="播放队列">
       <div class="queue-header">
-        <h2>播放列表 <span class="queue-count" id="queueCount">0</span></h2>
+        <h2>播放队列 <span class="queue-count" id="queueCount">0</span></h2>
         <div class="queue-actions">
+          <button class="btn-text" id="saveQueueAsPlaylistBtn" type="button" title="将当前播放队列保存为歌单">存为歌单</button>
           <button class="btn-text text-danger" id="clearQueueBtn" type="button">清空</button>
-          <button class="icon-btn" id="closeQueueBtn" type="button" aria-label="关闭播放列表">
+          <button class="icon-btn" id="closeQueueBtn" type="button" aria-label="关闭播放队列">
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
           </button>
         </div>
@@ -326,7 +445,7 @@
       </div>
 
       <div class="player-extras">
-        <button class="icon-btn" id="openQueueBtn" type="button" title="播放列表" aria-label="打开播放列表">
+        <button class="icon-btn" id="openQueueBtn" type="button" title="播放队列" aria-label="打开播放队列">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
           <span class="badge" id="queueBadge" style="display:none;">0</span>
         </button>
@@ -341,6 +460,248 @@
       </div>
     </footer>
   </div>
+
+  <!-- Authentication & First-Run Setup Overlay -->
+  <section class="auth-overlay" id="authOverlay" aria-label="身份验证" hidden>
+    <div class="auth-panel">
+      <div class="auth-brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <span class="auth-wordmark">musicdl</span>
+      </div>
+
+      <div class="auth-tabs" id="authModeTabs" hidden>
+        <button class="filter-pill active" id="authTabLogin" type="button">登录</button>
+        <button class="filter-pill" id="authTabRegister" type="button">注册账号</button>
+      </div>
+
+      <h2 id="authHeading">登录账号</h2>
+      <p class="auth-subtext" id="authSubtext">登录后即可同步您的个人歌单、协作歌单与播放队列。</p>
+
+      <form class="auth-form" id="authForm">
+        <div class="form-group">
+          <label for="authUsername">用户名</label>
+          <input type="text" id="authUsername" class="form-control" autocomplete="username" placeholder="例如 alice" required>
+        </div>
+        <div class="form-group" id="authDisplayNameGroup" hidden>
+          <label for="authDisplayName">显示昵称</label>
+          <input type="text" id="authDisplayName" class="form-control" autocomplete="nickname" placeholder="界面上展示的名称（选填）">
+        </div>
+        <div class="form-group">
+          <label for="authPassword">密码</label>
+          <input type="password" id="authPassword" class="form-control" autocomplete="current-password" placeholder="至少 6 位字符" required>
+        </div>
+        <p class="auth-error" id="authErrorMsg" role="alert" hidden></p>
+        <button class="btn btn-primary auth-submit-btn" id="authSubmitBtn" type="submit">登录</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Quick Add-to-Playlist Popover (Fixed Top-Layer) -->
+  <div class="playlist-popover" id="addToPlaylistPopover" role="dialog" aria-label="添加到歌单" hidden>
+    <div class="popover-head">
+      <span id="popoverTitleText">收藏到歌单</span>
+      <button class="icon-btn popover-close" id="closePlaylistPopoverBtn" type="button" aria-label="关闭菜单">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="popover-list" id="popoverPlaylistList"></div>
+    <form class="popover-create-form" id="popoverQuickCreateForm">
+      <label class="sr-only" for="popoverNewPlaylistInput">新建歌单名称</label>
+      <input type="text" id="popoverNewPlaylistInput" placeholder="输入名称新建歌单…" maxlength="80" autocomplete="off">
+      <button class="btn btn-sm btn-primary" type="submit">新建</button>
+    </form>
+  </div>
+
+  <!-- Create / Edit Playlist Dialog -->
+  <dialog class="app-dialog" id="playlistEditDialog" aria-labelledby="plDialogTitle">
+    <form class="dialog-body" id="plEditForm">
+      <div class="dialog-header">
+        <h3 id="plDialogTitle">新建歌单</h3>
+        <button class="icon-btn" id="closePlEditDialogBtn" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label for="plFormName">歌单名称</label>
+        <input type="text" id="plFormName" class="form-control" maxlength="80" placeholder="例如：深夜爵士 / 通勤精选" required>
+      </div>
+
+      <div class="form-group">
+        <label for="plFormDesc">歌单简介</label>
+        <input type="text" id="plFormDesc" class="form-control" maxlength="300" placeholder="选填，简短记录歌单风格或说明">
+      </div>
+
+      <div class="form-group" id="plFormOwnerGroup" hidden>
+        <label for="plFormOwnerSelect">歌单归属用户（管理员代建）</label>
+        <select id="plFormOwnerSelect" class="form-control"></select>
+      </div>
+
+      <div class="form-group">
+        <label for="plFormVisibility">默认可见性</label>
+        <select id="plFormVisibility" class="form-control">
+          <option value="private">私有（仅创建者与共享成员可见）</option>
+          <option value="public">公开（服务器全体登录成员可见）</option>
+        </select>
+      </div>
+
+      <div class="form-check-group" id="plFormPublicEditWrap" hidden>
+        <label class="checkbox-label">
+          <input type="checkbox" id="plFormPublicEditable">
+          <span>允许所有成员向此公开歌单增删曲目</span>
+        </label>
+      </div>
+
+      <div class="dialog-footer">
+        <button class="btn" id="cancelPlEditBtn" type="button">取消</button>
+        <button class="btn btn-primary" id="submitPlEditBtn" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Share & Multi-User Distribute Playlist Dialog -->
+  <dialog class="app-dialog dialog-wide" id="playlistShareDialog" aria-labelledby="plShareDialogTitle">
+    <div class="dialog-body">
+      <div class="dialog-header">
+        <h3 id="plShareDialogTitle">共享与多用户分发</h3>
+        <button class="icon-btn" id="closePlShareDialogBtn" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="share-mode-tabs" role="tablist">
+        <button class="filter-pill active" id="shareModeLiveBtn" type="button" role="tab" aria-selected="true">实时共享协作</button>
+        <button class="filter-pill" id="shareModeDistributeBtn" type="button" role="tab" aria-selected="false">分发副本给多用户</button>
+      </div>
+
+      <div id="shareLivePane">
+        <p class="form-text share-pane-desc">受邀成员将直接看到同一张歌单，任何曲目增删与排序都会向全体成员实时同步。</p>
+        <div class="form-group">
+          <label for="shareVisibilitySelect">全员可见性</label>
+          <select id="shareVisibilitySelect" class="form-control">
+            <option value="private">仅指定共享成员可见</option>
+            <option value="public">对全体登录用户公开</option>
+          </select>
+        </div>
+        <div class="form-check-group" id="sharePubEditWrap" hidden>
+          <label class="checkbox-label">
+            <input type="checkbox" id="sharePubEditCheck">
+            <span>公开状态下允许所有成员协作编辑</span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>指定共享成员与权限</label>
+          <div class="share-users-list" id="shareMembersList"></div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn btn-primary" id="saveShareSettingsBtn" type="button">保存共享设置</button>
+        </div>
+      </div>
+
+      <div id="shareDistributePane" hidden>
+        <p class="form-text share-pane-desc">为勾选的用户各自生成一份独立歌单副本。选择「覆盖同步」时，后续再次分发会自动更新对方已有的同名关联副本。</p>
+        <div class="distribute-toolbar">
+          <span class="section-title">选择接收歌单的用户</span>
+          <button class="btn-text" id="distributeSelectAllBtn" type="button">全选其他用户</button>
+        </div>
+        <div class="share-users-list" id="distributeUsersList"></div>
+        <div class="form-group distribute-mode-group">
+          <label for="distributeModeSelect">同步方式</label>
+          <select id="distributeModeSelect" class="form-control">
+            <option value="sync">覆盖同步（对方已有分发副本则更新曲目，否则新建）</option>
+            <option value="copy">始终新建独立歌单副本</option>
+          </select>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn btn-primary" id="runDistributeBtn" type="button">分发并同步给所选用户</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Account Profile & Password Dialog -->
+  <dialog class="app-dialog" id="accountDialog" aria-labelledby="accountDialogTitle">
+    <div class="dialog-body">
+      <div class="dialog-header">
+        <h3 id="accountDialogTitle">账号与多端同步</h3>
+        <button class="icon-btn" id="closeAccountDialogBtn" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="account-summary-bar">
+        <div>
+          <strong id="acctUsernameLabel">@user</strong>
+          <span class="badge-tag" id="acctRoleLabel">成员</span>
+        </div>
+        <span class="acct-sync-text" id="acctSyncStatus">实时同步已连接</span>
+      </div>
+
+      <form class="account-section" id="acctProfileForm">
+        <div class="form-group">
+          <label for="acctDisplayNameInput">显示昵称</label>
+          <div class="inline-field-row">
+            <input type="text" id="acctDisplayNameInput" class="form-control" maxlength="48" required>
+            <button class="btn" type="submit">保存昵称</button>
+          </div>
+        </div>
+      </form>
+
+      <form class="account-section" id="acctPasswordForm">
+        <div class="form-group">
+          <label for="acctCurrentPwd">修改登录密码</label>
+          <input type="password" id="acctCurrentPwd" class="form-control" placeholder="当前密码" autocomplete="current-password" required>
+          <input type="password" id="acctNewPwd" class="form-control" placeholder="新密码（至少 6 位）" autocomplete="new-password" required>
+        </div>
+        <button class="btn" type="submit">更新密码</button>
+      </form>
+
+      <div class="dialog-footer dialog-footer-split">
+        <button class="btn btn-danger-outline" id="logoutBtn" type="button">退出当前账号</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Admin User Create / Edit Dialog -->
+  <dialog class="app-dialog" id="userFormDialog" aria-labelledby="userDialogTitle">
+    <form class="dialog-body" id="userAdminForm">
+      <div class="dialog-header">
+        <h3 id="userDialogTitle">添加用户</h3>
+        <button class="icon-btn" id="closeUserDialogBtn" type="button" aria-label="关闭">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="form-group" id="userFormUsernameGroup">
+        <label for="userFormUsername">登录用户名</label>
+        <input type="text" id="userFormUsername" class="form-control" maxlength="32" placeholder="2–32 个字符，不含空格">
+      </div>
+
+      <div class="form-group">
+        <label for="userFormDisplayName">显示昵称</label>
+        <input type="text" id="userFormDisplayName" class="form-control" maxlength="48" placeholder="界面展示名称" required>
+      </div>
+
+      <div class="form-group">
+        <label for="userFormRole">权限角色</label>
+        <select id="userFormRole" class="form-control">
+          <option value="user">普通成员（管理个人与协作歌单、共享曲库播放与下载）</option>
+          <option value="admin">管理员（可管理所有账号、系统配置与删除本地曲库文件）</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="userFormPassword">登录密码</label>
+        <input type="password" id="userFormPassword" class="form-control" autocomplete="new-password" placeholder="至少 6 位字符">
+        <small class="form-text" id="userFormPasswordHint" hidden>留空则保持原密码不变。</small>
+      </div>
+
+      <div class="dialog-footer">
+        <button class="btn" id="cancelUserDialogBtn" type="button">取消</button>
+        <button class="btn btn-primary" id="submitUserDialogBtn" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
 
   <audio id="mainAudio" preload="none" crossorigin="anonymous"></audio>
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
