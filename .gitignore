@@ -19,3 +19,4 @@ downloads/
 .DS_Store
 .idea/
 .vscode/
+.agent/

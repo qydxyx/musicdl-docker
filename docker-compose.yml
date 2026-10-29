@@ -7,7 +7,7 @@ services:
     ports:
       - "${PORT:-8080}:8080"
     volumes:
-      - ./downloads:/app/downloads
+      - ${DOWNLOADS_DIR:-./downloads}:/app/downloads
       - ./data:/app/data
     environment:
       - TZ=${TZ:-Asia/Shanghai}
